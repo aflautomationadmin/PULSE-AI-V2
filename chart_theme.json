@@ -1,0 +1,15 @@
+{
+  "background": "#ffffff",
+  "text": "#1f2937",
+  "grid": "#e5e7eb",
+  "palette": [
+    "#2563eb",
+    "#10b981",
+    "#f59e0b",
+    "#ef4444",
+    "#8b5cf6",
+    "#06b6d4"
+  ],
+  "barColor": "#2563eb",
+  "lineColor": "#2563eb"
+}

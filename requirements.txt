@@ -1,0 +1,6 @@
+openai>=1.0.0
+litellm>=1.74.0
+pyodbc>=5.1.0
+python-dotenv>=1.0.1
+pydantic>=2.7.0
+pytest>=8.2.0

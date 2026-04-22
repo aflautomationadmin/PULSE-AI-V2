@@ -1,0 +1,312 @@
+{
+  "table_name": "prd.FACT_SALES_AI",
+  "column_descriptions": {
+    "STORE_FORMAT": "Store format classification (for example: mall, high street, outlet)",
+    "STORE_NAME": "Display name of the store",
+    "ORDERS": "Order or bill identifier captured in the sales record",
+    "CHANNEL": "Sales channel (for example: offline, online, marketplace)",
+    "REGION": "Business region used for reporting",
+    "STATE": "State where the transaction/store is located",
+    "CITY": "City where the transaction/store is located",
+    "STATUS": "Current status of the sales record or transaction",
+    "CATEGORY": "Merchandise category of the sold item",
+    "ITEM_STYLECODE": "Style code or model code of the product",
+    "FTW_CATEGORY": "Footwear category classification",
+    "SIZE": "Numeric size value for the item",
+    "BRAND_AREA": "Brand area or brand segment grouping",
+    "COHORT": "Cohort bucket used for store/customer performance analysis",
+    "LTL_STORE_STATUS": "Store lifecycle/status tag used by LTL reporting",
+    "STORECODE": "Unique code used to identify the store",
+    "INV_DATE": "Invoice date of the transaction",
+    "BRAND": "Primary brand name",
+    "SUBBRAND": "Sub-brand under the primary brand",
+    "SUBCLASS": "Product subclass under category hierarchy",
+    "INV_CNT": "Invoice count value associated with the record",
+    "INVOICETYPE": "Type of invoice (for example: sale, return, exchange)",
+    "COLOR": "Color attribute of the sold item",
+    "ITEMSIZE": "Display/item size as captured on invoice",
+    "TAXABLE": "Taxable amount used for tax computation",
+    "NETAMT": "Net transaction amount after discounts and applicable adjustments",
+    "QTY": "Quantity of units sold in the transaction",
+    "TOTAL_MRP": "Total MRP amount before discount",
+    "DISCOUNT": "Discount amount applied on the transaction/item",
+    "AIL_SALES": "Sales amount attributed to AIL reporting logic",
+    "POS_SALES": "Point-of-sale sales amount",
+    "GST_REBATE": "GST rebate amount applied",
+    "GWP_DISC": "Gift-with-purchase discount amount",
+    "TARGET_AMT": "Target sales amount for comparison against actuals"
+  },
+  "column_data_types": {
+    "STORE_FORMAT": "varchar",
+    "STORE_NAME": "varchar",
+    "ORDERS": "varchar",
+    "CHANNEL": "varchar",
+    "REGION": "varchar",
+    "STATE": "varchar",
+    "CITY": "varchar",
+    "STATUS": "varchar",
+    "CATEGORY": "varchar",
+    "ITEM_STYLECODE": "varchar",
+    "FTW_CATEGORY": "varchar",
+    "SIZE": "float",
+    "BRAND_AREA": "varchar",
+    "COHORT": "varchar",
+    "LTL_STORE_STATUS": "varchar",
+    "STORECODE": "varchar",
+    "INV_DATE": "date",
+    "BRAND": "varchar",
+    "SUBBRAND": "varchar",
+    "SUBCLASS": "varchar",
+    "INV_CNT": "varchar",
+    "INVOICETYPE": "varchar",
+    "COLOR": "varchar",
+    "ITEMSIZE": "varchar",
+    "TAXABLE": "float",
+    "NETAMT": "float",
+    "QTY": "float",
+    "TOTAL_MRP": "float",
+    "DISCOUNT": "float",
+    "AIL_SALES": "float",
+    "POS_SALES": "float",
+    "GST_REBATE": "int",
+    "GWP_DISC": "int",
+    "TARGET_AMT": "float"
+  },
+  "kpis": [
+    {
+      "name": "Total Net Amount",
+      "description": "Sum of NETAMT over selected period",
+      "formula": "SUM(NETAMT)",
+      "sql_hint": "Use SUM(NETAMT)"
+    },
+    {
+      "name": "Average Selling Price",
+      "description": "Average net amount per unit sold",
+      "formula": "SUM(NETAMT) / NULLIF(SUM(QTY), 0)",
+      "sql_hint": "Use NULLIF to avoid divide-by-zero"
+    },
+    {
+      "name": "Target Achievement Percent",
+      "description": "Net amount achieved versus target",
+      "formula": "100.0 * SUM(NETAMT) / NULLIF(SUM(TARGET_AMT), 0)",
+      "sql_hint": "Return percentage as numeric value"
+    }
+  ],
+  "kpi_procedures": [
+    {
+      "kpi": "ABV",
+      "aliases": [
+        "abv", "average basket value", "basket value", "avg basket",
+        "basket size", "bill value", "average bill value"
+      ],
+      "procedure": "GetABVai",
+      "description": "Average Basket Value = TotalSalesValue / NetBills. NetBills = COUNT(DISTINCT SALES invoices) - COUNT(DISTINCT non-SALES invoices). TotalSalesValue = SUM(NETAMT) for SALES invoices only. The procedure returns only the requested dimension columns plus the ABV value — intermediate columns (NetBills, TotalSalesValue) are not in the output.",
+      "output_columns": ["<group_by dimension columns — e.g. BRAND, STATE>", "<date period column when time_grain is set — e.g. Week, Month>", "ABV"],
+      "parameters": {
+        "date_from":    "DATE string (YYYY-MM-DD) or null — explicit start date, takes precedence over date_preset",
+        "date_to":      "DATE string (YYYY-MM-DD) or null — explicit end date, defaults to today",
+        "date_preset":  "MTD|QTD|YTD|LAST_7|LAST_14|LAST_30|LAST_MONTH — shorthand period used only when date_from is null",
+        "time_grain":   "null|AUTO|DAY|WEEK|MONTH|QUARTER — null means single aggregate (no date axis), AUTO means procedure infers grain from date span",
+        "brand":        "brand name filter (LIKE match) or null",
+        "subbrand":     "subbrand filter (LIKE match) or null",
+        "store_name":   "store name filter (LIKE match) or null",
+        "store_format": "store format filter (LIKE match) or null",
+        "storecode":    "storecode exact match or null",
+        "channel":      "channel exact match (e.g. OFFLINE, ONLINE) or null",
+        "region":       "region exact match or null",
+        "state":        "state filter (LIKE match) or null",
+        "city":         "city filter (LIKE match) or null",
+        "category":     "category filter (LIKE match) or null",
+        "subclass":     "subclass filter (LIKE match) or null",
+        "group_by":     "comma-separated dimension column names or null — allowed: BRAND,SUBBRAND,STORE_NAME,STORE_FORMAT,STORECODE,CHANNEL,REGION,STATE,CITY,CATEGORY,SUBCLASS"
+      },
+      "time_grain_rules": {
+        "null":    "user wants a single number or a breakdown by dimensions only — no date column in output",
+        "AUTO":    "user asks for a trend, over time, or gives a date range — procedure picks DAY/WEEK/MONTH/QUARTER from the span",
+        "DAY":     "user explicitly says daily",
+        "WEEK":    "user explicitly says weekly",
+        "MONTH":   "user explicitly says monthly",
+        "QUARTER": "user explicitly says quarterly"
+      }
+    }
+  ],
+  "business_terms": {
+    "IW": "Innerwear",
+    "FTW": "Footwear"
+  },
+  "brand_alias_mappings": [
+    {
+      "canonical_brand": "USPA",
+      "scope_column": "BRAND",
+      "aliases": [
+        "US",
+        "US.",
+        "USP",
+        "USP.",
+        "USPO",
+        "USPO.",
+        "USPOA",
+        "USPOA.",
+        "USPA",
+        "USPA.",
+        "USPOLO",
+        "USPOLO.",
+        "US POLO",
+        "US POLO.",
+        "US POLO ASSN",
+        "US POLO ASSN.",
+        "USPOLOASSN",
+        "USPOLOASSN.",
+        "U S POLO",
+        "US PA",
+        "US-POLO",
+        "US-POLO-ASSN",
+        "U-S-POLO",
+        "US-PA",
+        "US_POLO",
+        "US_POLO_ASSN",
+        "U_S_POLO",
+        "US_PA"
+      ],
+      "note": "Also treat spacing, punctuation, underscore and hyphen variants as the same USPA brand on BRAND column. IMPORTANT: bare 'polo' alone (without 'US' or 'USPA' prefix) is NOT a USPA brand reference — it refers to the polo product type and should be filtered on CATEGORY or SUBCLASS, not BRAND."
+    },
+    {
+      "canonical_brand": "ARROW",
+      "scope_column": "BRAND",
+      "aliases": [
+        "AR",
+        "AR.",
+        "ARR",
+        "ARR.",
+        "ARRO",
+        "ARRO.",
+        "ARROW",
+        "ARROW.",
+        "A ROW",
+        "AR ROW",
+        "ARR OW",
+        "A-ROW",
+        "AR-ROW",
+        "ARR-OW",
+        "A_ROW",
+        "AR_ROW",
+        "ARR_OW",
+        "AROW",
+        "AROW.",
+        "ARROR",
+        "ARROR.",
+        "ARROE",
+        "ARROE.",
+        "ARRWO",
+        "ARRWO.",
+        "AROWW",
+        "AROWW.",
+        "ARROQ",
+        "ARROQ.",
+        "ARROA",
+        "ARROA.",
+        "ARRW",
+        "ARRW."
+      ],
+      "note": "Include common typos and punctuation/spacing variants for ARROW on BRAND column."
+    },
+    {
+      "canonical_brand": "FM",
+      "scope_column": "BRAND",
+      "aliases": [
+        "flying machine",
+        "flying machines",
+        "fly machine",
+        "fly machines",
+        "flying mach",
+        "fly mach",
+        "flying mac",
+        "fly mac",
+        "flying machin",
+        "fly machin",
+        "flying mashine",
+        "fly mashine",
+        "flying machne",
+        "fly machne",
+        "flyin machine",
+        "flyin mach",
+        "flyin machin",
+        "flyingmachine",
+        "flymachine",
+        "flying-machine",
+        "fly-machine",
+        "flying machinee",
+        "flying machien",
+        "fly machien",
+        "flying macine",
+        "fly macine",
+        "f m",
+        "fm",
+        "f.m",
+        "f machine",
+        "f mach",
+        "flying m",
+        "fly m",
+        "flying"
+      ],
+      "note": "FM means Flying Machine brand aliases on BRAND column."
+    },
+    {
+      "canonical_brand": "FTW",
+      "scope_column": "BRAND",
+      "aliases": [
+        "FTW",
+        "FOOTWEAR",
+        "FOOT WEAR",
+        "FOOT WARE"
+      ],
+      "note": "FTW is a brand abbreviation for FOOTWEAR. Do not map this to CATEGORY unless explicitly asked for CATEGORY."
+    },
+    {
+      "canonical_brand": "IW",
+      "scope_column": "BRAND",
+      "aliases": [
+        "IW",
+        "INNERWEAR",
+        "INNER WEAR",
+        "INNER WARE"
+      ],
+      "note": "IW is a brand abbreviation for INNERWEAR. Do not map this to CATEGORY unless explicitly asked for CATEGORY."
+    },
+    {
+      "canonical_brand": "TOMMY HILFIGER",
+      "scope_column": "BRAND",
+      "aliases": [
+        "TH",
+        "TOMMY H",
+        "TOMY HELI",
+        "TOMMY HELIFIGER",
+        "TOMMY HILFIGER",
+        "PVH Arvind Fashion Pvt Ltd-TOMMY"
+      ],
+      "note": "Include misspellings and shorthand variants for TOMMY HILFIGER on BRAND column."
+    },
+    {
+      "canonical_brand": "CALVIN KLEIN",
+      "scope_column": "BRAND",
+      "aliases": [
+        "CK",
+        "CALVIN K",
+        "CLAVIN KEL",
+        "CALVIN KLEIN",
+        "PVH ARVIND FASHION PVT LTD- CALV"
+      ],
+      "note": "Include misspellings and shorthand variants for CALVIN KLEIN on BRAND column."
+    },
+    {
+      "canonical_brand": "AD BY ARVIND",
+      "scope_column": "BRAND",
+      "aliases": [
+        "AD",
+        "AD BY ARVIND",
+        "ARVIND LIMITED-AD-Arvind"
+      ],
+      "note": "Include shorthand variants for AD BY ARVIND on BRAND column."
+    }
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "Backend API (FastAPI/Uvicorn)",
+      "runtimeExecutable": "uvicorn",
+      "runtimeArgs": ["api:app", "--host", "0.0.0.0", "--port", "8000", "--reload"],
+      "port": 8000
+    },
+    {
+      "name": "Frontend (Vite/React)",
+      "runtimeExecutable": "cmd",
+      "runtimeArgs": ["/c", "cd C:\\Users\\7518549\\WORK\\AI-DA-AGENTS\\frontend && npm run dev"],
+      "port": 5173
+    }
+  ]
+}

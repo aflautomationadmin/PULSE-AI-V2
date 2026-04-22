@@ -1,0 +1,42 @@
+# Python bytecode and caches
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Pytest and test temp artifacts
+.pytest_cache/
+.pytest-temp-run*/
+pytest_temp_run_threads3/
+pytest-cache-files-*/
+test_artifacts/
+.tmp/
+sqlcache-test-*/
+entity-test-*/
+test-memory-*.json
+test-sql-cache-*.sqlite3
+test-memory-shared-*.json
+test-state-index-*.json
+
+# Runtime-generated caches/state
+.cache/
+
+# Local environment secrets
+.env
+
+# Node / frontend build artefacts
+frontend/node_modules/
+frontend/dist/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+*.suo
+*.user

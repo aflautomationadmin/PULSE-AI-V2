@@ -1,0 +1,3 @@
+@echo off
+echo Starting AI-DA-Agents API on http://localhost:8000 ...
+uvicorn api:app --host 0.0.0.0 --port 8000 --reload
