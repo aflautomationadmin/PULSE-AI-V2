@@ -2,7 +2,31 @@
   "permissions": {
     "allow": [
       "Bash(python -c ' *)",
-      "Bash(npx tsc *)"
+      "Bash(npx tsc *)",
+      "Bash(pip install *)",
+      "Bash(powershell -Command \"Start-Process powershell -ArgumentList 'net start MongoDB; Read-Host Press Enter to close' -Verb RunAs\")",
+      "Bash(npm install *)",
+      "Bash(pip show *)",
+      "Bash(python -c \"from src.auth import get_current_user; print\\('src/auth OK'\\)\")",
+      "Bash(python -c \"from src.orchestrator import ChatOrchestrator; import inspect; sig = inspect.signature\\(ChatOrchestrator.__init__\\); print\\('orchestrator sig:', sig\\)\")",
+      "Bash(python -c \"import api; print\\('api.py OK'\\)\")",
+      "Bash(node -e \"const p = require\\('./node_modules/@azure/msal-browser/package.json'\\); console.log\\('msal-browser:', p.version\\)\")",
+      "Bash(node -e \"const p = require\\('./node_modules/@azure/msal-react/package.json'\\); console.log\\('msal-react:', p.version\\)\")",
+      "Bash(python -c \"from src.tracing import get_langfuse, set_trace_context, current_trace_id; print\\('tracing OK'\\)\")",
+      "Bash(python -c \"from src.llm import run_text_agent; print\\('llm OK'\\)\")",
+      "Bash(python -c \"import api; print\\('api OK'\\)\")",
+      "Bash(python -c \"from src.tracing import get_langfuse; from src.llm import run_text_agent; print\\('OK - langfuse:', __import__\\('langfuse'\\).__version__\\)\")",
+      "Bash(pandoc --version)",
+      "Bash(python -c \"import docx; print\\('python-docx available'\\)\")",
+      "Bash(python generate_roadmap_docx.py)",
+      "Bash(dir \"C:\\\\Users\\\\7518549\\\\WORK\\\\AI-DA-AGENTS\\\\SKILLS_ROADMAP.docx\")",
+      "Bash(powershell -command \"\\(Get-Item 'C:\\\\Users\\\\7518549\\\\WORK\\\\AI-DA-AGENTS\\\\SKILLS_ROADMAP.docx'\\).Length / 1KB\")",
+      "Bash(curl -s -o nul -w \"%{http_code}\" http://localhost:3001/)",
+      "Bash(netstat -ano)",
+      "Bash(findstr \":3001\")",
+      "Bash(tasklist /fi \"PID eq 7524\")",
+      "Bash(tasklist /fi \"PID eq 34080\")",
+      "PowerShell(try { $r = Invoke-WebRequest -Uri \"http://localhost:3001\" -TimeoutSec 5 -UseBasicParsing; \"Status: $\\($r.StatusCode\\)\" } catch { \"Error: $_\" })"
     ]
   }
 }

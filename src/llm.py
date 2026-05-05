@@ -7,9 +7,26 @@ from collections.abc import Generator
 from typing import Any
 from typing import TypeVar
 
+import litellm
 from pydantic import BaseModel, ValidationError
 
 from src.config import get_settings
+from src.tracing import current_trace_id, current_user_id
+
+# ── Langfuse auto-logging via LiteLLM callback ────────────────────────────────
+# Activates once on import. Every completion() / embedding() call is logged to
+# Langfuse automatically when LANGFUSE_* env vars are set.
+litellm.success_callback = ["langfuse"]
+
+
+def _lf_meta(generation_name: str) -> dict:
+    """Build the metadata dict that links a LiteLLM call to the current trace."""
+    meta: dict = {"generation_name": generation_name}
+    tid = current_trace_id()
+    if tid:
+        meta["trace_id"]      = tid
+        meta["trace_user_id"] = current_user_id() or "anonymous"
+    return meta
 
 T = TypeVar("T", bound=BaseModel)
 
@@ -172,6 +189,7 @@ def run_text_agent(
             messages=_build_messages(instructions, user_input),
             temperature=0,
             timeout=float(max(1, settings.llm_timeout_seconds)),
+            metadata=_lf_meta(agent_name or "completion"),
         )
     except Exception as exc:
         _raise_runtime_error(exc)
@@ -203,6 +221,7 @@ def stream_text_agent(
             temperature=0,
             timeout=float(max(1, settings.llm_timeout_seconds)),
             stream=True,
+            metadata=_lf_meta(agent_name or "stream"),
         )
     except Exception as exc:
         _raise_runtime_error(exc)
@@ -256,6 +275,7 @@ def run_embedding(*, text: str, model: str | None = None) -> list[float]:
             model=selected_model,
             input=[text],
             timeout=float(max(1, settings.embedding_timeout_seconds)),
+            metadata=_lf_meta("embedding"),
         )
     except Exception as exc:
         _raise_runtime_error(exc)

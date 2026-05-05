@@ -41,9 +41,16 @@ class Settings:
     mongo_uri: str | None = None
     mongo_db_name: str = "ai_da_agents"
     mongo_collection: str = "conversation_threads"
-    # User identity — set this when authentication is added (e.g. from SSO/login)
-    # Defaults to "anonymous" so all threads share one user namespace today.
+    # User identity — overridden at runtime by the authenticated user's email.
+    # Falls back to "anonymous" only when auth is disabled.
     mongo_user_id: str = "anonymous"
+    # Azure AD — required for JWT validation when auth is enabled
+    azure_tenant_id: str = ""   # AZURE_TENANT_ID
+    azure_client_id: str = ""   # AZURE_CLIENT_ID
+    # Langfuse observability (optional — silently disabled when keys are absent)
+    langfuse_public_key: str = ""   # LANGFUSE_PUBLIC_KEY
+    langfuse_secret_key: str = ""   # LANGFUSE_SECRET_KEY
+    langfuse_host: str = "https://cloud.langfuse.com"  # LANGFUSE_HOST
     llm_timeout_seconds: int = 45
     embedding_timeout_seconds: int = 30
     visualization_enabled: bool = True
@@ -116,6 +123,11 @@ def get_settings() -> Settings:
         mongo_db_name=os.getenv("MONGO_DB_NAME", "ai_da_agents"),
         mongo_collection=os.getenv("MONGO_COLLECTION", "conversation_threads"),
         mongo_user_id=os.getenv("MONGO_USER_ID", "anonymous"),
+        azure_tenant_id=os.getenv("AZURE_TENANT_ID", "").strip(),
+        azure_client_id=os.getenv("AZURE_CLIENT_ID", "").strip(),
+        langfuse_public_key=os.getenv("LANGFUSE_PUBLIC_KEY", "").strip(),
+        langfuse_secret_key=os.getenv("LANGFUSE_SECRET_KEY", "").strip(),
+        langfuse_host=os.getenv("LANGFUSE_HOST", "https://cloud.langfuse.com").strip(),
         db_server=_required_env("DB_SERVER"),
         db_database=_required_env("DB_DATABASE"),
         db_username=_required_env("DB_USERNAME"),

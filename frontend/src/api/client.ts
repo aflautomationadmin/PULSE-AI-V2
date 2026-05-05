@@ -3,6 +3,41 @@ import type { ChatResponse, ThreadsResponse, SqlCacheEntry } from './types';
 
 const api = axios.create({ baseURL: '' });
 
+// ── Auth token injection ───────────────────────────────────────────────────────
+// Call setTokenGetter(getToken) once on login; both axios and SSE fetch will
+// use it to attach Authorization: Bearer <id_token> on every request.
+let _getToken: (() => Promise<string>) | null = null;
+
+export function setTokenGetter(fn: () => Promise<string>): void {
+  _getToken = fn;
+}
+
+api.interceptors.request.use(async (config) => {
+  if (_getToken) {
+    try {
+      const token = await _getToken();
+      config.headers.Authorization = `Bearer ${token}`;
+    } catch {
+      // token acquisition failed — request will proceed without auth header
+      // and the backend will return 401, which the UI can handle
+    }
+  }
+  return config;
+});
+
+// ── Helper: get auth headers for native fetch (SSE) ───────────────────────────
+async function _authHeaders(): Promise<HeadersInit> {
+  const headers: HeadersInit = { 'Content-Type': 'application/json' };
+  if (_getToken) {
+    try {
+      const token = await _getToken();
+      (headers as Record<string, string>)['Authorization'] = `Bearer ${token}`;
+    } catch { /* proceed without */ }
+  }
+  return headers;
+}
+
+// ── Chat (non-streaming) ──────────────────────────────────────────────────────
 export async function sendMessage(message: string): Promise<ChatResponse> {
   const { data } = await api.post<ChatResponse>('/chat', { message });
   return data;
@@ -12,7 +47,7 @@ export async function sendMessage(message: string): Promise<ChatResponse> {
 export type StreamEvent =
   | { type: 'start';    sql_used: string }
   | { type: 'token';    content: string }
-  | { type: 'complete'; content: string; sql_used?: string }
+  | { type: 'complete'; content: string; sql_used?: string; trace_id?: string }
   | { type: 'metadata'; sql_used: string | null; sql_explanation: string | null;
       chart_data: import('./types').ChartData | null; chart_type: string | null;
       row_preview: Record<string, unknown>[] | null;
@@ -20,13 +55,16 @@ export type StreamEvent =
       verification: import('./types').VerificationResult | null;
       last_resolver_explanation: string | null;
       answer?: string;          // present on chart_retype (no token stream)
-      cache_status?: string; }
+      cache_status?: string;
+      trace_id?: string; }
   | { type: 'error';    content: string };
 
 export async function* streamMessage(message: string): AsyncGenerator<StreamEvent> {
+  const headers = await _authHeaders();
+
   const response = await fetch('/chat/stream', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers,
     body: JSON.stringify({ message }),
   });
 
@@ -93,5 +131,14 @@ export async function getSqlCacheEntries(limit = 10): Promise<SqlCacheEntry[]> {
 
 export async function clearSqlCache(): Promise<{ cleared: number }> {
   const { data } = await api.delete('/cache/sql');
+  return data;
+}
+
+export async function submitFeedback(
+  trace_id: string,
+  score: 1 | 0,
+  comment?: string,
+): Promise<{ ok: boolean; trace_id: string; score_id: string }> {
+  const { data } = await api.post('/feedback', { trace_id, score, comment });
   return data;
 }

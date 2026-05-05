@@ -65,7 +65,7 @@ export function Sidebar({ threads, activeThread, onThreadChange, onNotify }: Pro
       <div className="sidebar-header">
         <img src="/LOgo.png" alt="Arvind Fashions" className="sidebar-logo" />
         <div className="sidebar-brand">
-          AI-DA-Agents
+          Pulse AI
           <span>Arvind Fashions</span>
         </div>
         <button className="sidebar-toggle" onClick={() => setCollapsed(v => !v)} title={collapsed ? 'Expand' : 'Collapse'}>
@@ -82,18 +82,21 @@ export function Sidebar({ threads, activeThread, onThreadChange, onNotify }: Pro
       {/* Thread list */}
       {!collapsed && <div className="thread-section-label">Conversations</div>}
       <div className="thread-list">
-        {threads.map(t => (
-          <div
-            key={t.thread_id}
-            className={`thread-item${t.is_active ? ' active' : ''}`}
-            onClick={() => handleSwitch(t.thread_id)}
-            title={t.thread_id}
-          >
-            <span className="thread-dot" />
-            <span className="thread-name">{t.thread_id}</span>
-            <span className="thread-turns">{t.turn_count}t</span>
-          </div>
-        ))}
+        {threads.map(t => {
+          const isActive = t.is_active || t.thread_id === activeThread;
+          return (
+            <div
+              key={t.thread_id}
+              className={`thread-item${isActive ? ' active' : ''}`}
+              onClick={() => handleSwitch(t.thread_id)}
+              title={t.thread_id}
+            >
+              <span className="thread-dot" />
+              <span className="thread-name">{t.thread_id}</span>
+              <span className="thread-turns">{t.turn_count}t</span>
+            </div>
+          );
+        })}
       </div>
 
       {/* Footer actions */}

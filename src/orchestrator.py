@@ -38,14 +38,23 @@ from src.mongo_memory import MongoConversationMemory
 from src.models import BotReply, SqlExecutionResult
 from src.sql_cache import SqlQueryCache, fingerprint_text, normalize_question_for_cache
 from src.sql_guard import SqlGuardError, ensure_safe_readonly_sql
+from src.tracing import current_trace_id
 from src.visualization import VisualOutput, build_visual_output
 
 
 class ChatOrchestrator:
-    def __init__(self, schema_cache: SchemaCache | None = None) -> None:
+    def __init__(
+        self,
+        schema_cache: SchemaCache | None = None,
+        user_id: str | None = None,
+    ) -> None:
         self.settings = get_settings()
         self.schema_cache = schema_cache or SchemaCache()
         self.context_store = BusinessContextStore(path=self.settings.business_context_path)
+        # user_id comes from the authenticated request (email); falls back to
+        # the MONGO_USER_ID env var (default "anonymous") when auth is off.
+        effective_user_id = (user_id or self.settings.mongo_user_id).strip() or "anonymous"
+        self._user_id = effective_user_id
         # ── Memory backend: MongoDB if MONGO_URI is set, else local JSON ──
         if self.settings.mongo_uri:
             self.memory = MongoConversationMemory(
@@ -55,7 +64,7 @@ class ChatOrchestrator:
                 max_turns=self.settings.memory_max_turns,
                 default_thread_id=self.settings.memory_default_thread,
                 auto_create_thread=self.settings.memory_auto_create_thread,
-                user_id=self.settings.mongo_user_id,
+                user_id=effective_user_id,
             )
         else:
             self.memory = ConversationMemory(
@@ -343,6 +352,21 @@ class ChatOrchestrator:
             yield {"type": "complete", "content": "Please enter a question."}
             return
 
+        # ── Langfuse trace — one trace per user request ──────────────────────
+        from src.tracing import current_trace_id, get_langfuse, set_trace_context
+        _lf = get_langfuse()
+        if _lf:
+            try:
+                _trace = _lf.trace(
+                    name="chat_request",
+                    user_id=self._user_id,
+                    input=cleaned,
+                    tags=["chat"],
+                )
+                set_trace_context(_trace.id, self._user_id)
+            except Exception:
+                pass  # tracing is non-fatal
+
         # ── Classify ────────────────────────────────────────────────────────
         classifier_input = self._build_contextual_input(cleaned)
         try:
@@ -357,7 +381,7 @@ class ChatOrchestrator:
         if classification.label == "normal_chat":
             answer = respond_to_normal_chat(self._build_contextual_input(cleaned))
             self.memory.add_turn(user=cleaned, assistant=answer, route="normal_chat")
-            yield {"type": "complete", "content": answer}
+            yield {"type": "complete", "content": answer, "trace_id": current_trace_id()}
             return
 
         # ── Domain guard ────────────────────────────────────────────────────
@@ -366,7 +390,11 @@ class ChatOrchestrator:
             self.memory.add_turn(
                 user=cleaned, assistant=domain.rejection_message, route="normal_chat"
             )
-            yield {"type": "complete", "content": domain.rejection_message}
+            yield {
+                "type": "complete",
+                "content": domain.rejection_message,
+                "trace_id": current_trace_id(),
+            }
             return
 
         # ── Business question ────────────────────────────────────────────────
@@ -412,7 +440,7 @@ class ChatOrchestrator:
             if clarification.needs_clarification and clarification.clarifying_question.strip():
                 msg = clarification.clarifying_question.strip()
                 self.memory.add_turn(user=question, assistant=msg, route="normal_chat")
-                yield {"type": "complete", "content": msg}
+                yield {"type": "complete", "content": msg, "trace_id": current_trace_id()}
                 return
 
             # SQL resolution
@@ -447,7 +475,12 @@ class ChatOrchestrator:
                     user=question, assistant=follow_up,
                     route="business_question", sql_used=sql,
                 )
-                yield {"type": "complete", "content": follow_up, "sql_used": sql}
+                yield {
+                    "type": "complete",
+                    "content": follow_up,
+                    "sql_used": sql,
+                    "trace_id": current_trace_id(),
+                }
                 return
 
             # Signal to frontend: SQL done, answer streaming begins
@@ -538,6 +571,17 @@ class ChatOrchestrator:
                 row_preview=visuals.row_preview,
             )
 
+            from src.tracing import current_trace_id, get_langfuse
+            _tid = current_trace_id()
+            # Update Langfuse trace with the final answer
+            _lf2 = get_langfuse()
+            if _lf2 and _tid:
+                try:
+                    _lf2.trace(id=_tid, output=answer)
+                    _lf2.flush()
+                except Exception:
+                    pass
+
             yield {
                 "type": "metadata",
                 "sql_used": sql,
@@ -549,6 +593,7 @@ class ChatOrchestrator:
                 "verification": verification.model_dump() if verification else None,
                 "last_resolver_explanation": self.last_resolver_explanation,
                 "cache_status": self.last_sql_cache_status,
+                "trace_id": _tid,
             }
 
         except SqlGuardError as exc:
@@ -897,6 +942,7 @@ class ChatOrchestrator:
             "verification": verification.model_dump() if verification else None,
             "last_resolver_explanation": None,
             "cache_status": f"kpi:{kpi_result.kpi}",
+            "trace_id": current_trace_id(),
         }
 
     def _stream_chart_retype(
@@ -945,6 +991,7 @@ class ChatOrchestrator:
             "chart_type": chart_type,
             "row_preview": last_turn.row_preview,
             "cache_status": "chart_retype",
+            "trace_id": current_trace_id(),
         }
 
     def _resolve_sql(

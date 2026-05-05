@@ -1,10 +1,14 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { v4 as uuid } from 'uuid';
+import { MsalProvider, AuthenticatedTemplate, UnauthenticatedTemplate } from '@azure/msal-react';
+import { msalInstance } from './auth/msalConfig';
+import { useAuth } from './auth/useAuth';
+import LoginPage from './pages/LoginPage';
 import { Sidebar } from './components/Sidebar';
 import { Message, type MessageItem } from './components/Message';
 import { ChatInput } from './components/ChatInput';
 import { Toast } from './components/Toast';
-import { streamMessage, listThreads, getThreadMessages } from './api/client';
+import { streamMessage, listThreads, getThreadMessages, setTokenGetter } from './api/client';
 import type { Thread } from './api/types';
 import './styles/chatbot.css';
 
@@ -24,7 +28,11 @@ const SAMPLE_QUESTIONS = [
   'Daily sales trend for Tommy Hilfiger',
 ];
 
-export default function App() {
+// ── Inner chat app (only renders when authenticated) ─────────────────────────
+
+function ChatApp() {
+  const { email, name, getToken, logout } = useAuth();
+
   const [messages, setMessages] = useState<MessageItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [progressNote, setProgressNote] = useState('');
@@ -33,6 +41,11 @@ export default function App() {
   const [toast, setToast] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const progressTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Wire the token getter into the API client so all requests carry a Bearer token
+  useEffect(() => {
+    setTokenGetter(getToken);
+  }, [getToken]);
 
   const refreshThreads = useCallback(async (loadMessages = false) => {
     try {
@@ -74,7 +87,6 @@ export default function App() {
     setLoading(true);
     startProgress();
 
-    // Create the bot message shell immediately (will be filled by stream)
     const botId = uuid();
     const botTimestamp = new Date();
     setMessages(prev => [...prev, {
@@ -83,15 +95,10 @@ export default function App() {
 
     try {
       let fullText = '';
-      // Partial response data accumulated from metadata event
-      let partialResponse: Partial<import('./api/types').ChatResponse> = {};
 
       for await (const event of streamMessage(text)) {
         if (event.type === 'start') {
-          // SQL done, streaming about to begin — stop progress note
           stopProgress();
-          partialResponse.sql_used = event.sql_used;
-          partialResponse.last_sql = event.sql_used;
 
         } else if (event.type === 'token') {
           fullText += event.content;
@@ -100,7 +107,6 @@ export default function App() {
           ));
 
         } else if (event.type === 'complete') {
-          // Non-streaming path (normal chat / clarification / empty result)
           fullText = event.content;
           const resp: import('./api/types').ChatResponse = {
             route: 'normal_chat',
@@ -115,6 +121,8 @@ export default function App() {
             last_sql: event.sql_used ?? null,
             last_entity_match: null,
             last_resolver_explanation: null,
+            cache_status: null,
+            trace_id: event.trace_id ?? null,
           };
           setMessages(prev => prev.map(m =>
             m.id === botId ? { ...m, text: fullText, streaming: false, response: resp } : m
@@ -122,8 +130,6 @@ export default function App() {
           stopProgress();
 
         } else if (event.type === 'metadata') {
-          // Final metadata — merge with accumulated text.
-          // chart_retype path sends no tokens, so fall back to event.answer.
           const resolvedText = fullText || event.answer || '';
           const resp: import('./api/types').ChatResponse = {
             route: 'business_question',
@@ -139,6 +145,7 @@ export default function App() {
             last_entity_match: null,
             last_resolver_explanation: event.last_resolver_explanation,
             cache_status: event.cache_status ?? null,
+            trace_id: event.trace_id ?? null,
           };
           setMessages(prev => prev.map(m =>
             m.id === botId ? { ...m, text: resolvedText, streaming: false, response: resp } : m
@@ -153,7 +160,6 @@ export default function App() {
         }
       }
 
-      // Ensure streaming flag is cleared when generator is exhausted
       setMessages(prev => prev.map(m =>
         m.id === botId ? { ...m, streaming: false } : m
       ));
@@ -188,7 +194,8 @@ export default function App() {
         last_sql: (m.sql_used as string) ?? null,
         last_entity_match: null,
         last_resolver_explanation: (m.last_resolver_explanation as string) ?? null,
-        cache_status: null,   // not persisted in memory turns
+        cache_status: null,
+        trace_id: null,   // not persisted in memory turns
       };
       return { id: uuid(), role: 'bot' as const, text: String(m.text ?? ''), response, timestamp: new Date() };
     });
@@ -199,9 +206,7 @@ export default function App() {
     setMessages(rawMessages && rawMessages.length > 0 ? rebuildMessages(rawMessages) : []);
   }
 
-  function handleChipClick(q: string) {
-    handleSend(q);
-  }
+  function handleChipClick(q: string) { handleSend(q); }
 
   const showWelcome = messages.length === 0 && !loading;
 
@@ -219,7 +224,7 @@ export default function App() {
         <header className="chat-header">
           <img src="/LOgo.png" alt="Arvind Fashions" className="chat-header-logo" />
           <div className="chat-header-title">
-            AI-DA-Agents
+            Pulse AI
             <span>Retail Analytics Assistant · Arvind Fashions</span>
           </div>
           <div className="chat-header-right">
@@ -232,6 +237,12 @@ export default function App() {
                 {activeThread}
               </span>
             )}
+            {/* User info + sign-out */}
+            <div className="user-chip" title={email}>
+              <span className="user-avatar">{(name || email).charAt(0).toUpperCase()}</span>
+              <span className="user-name">{name || email}</span>
+              <button className="signout-btn" onClick={logout} title="Sign out">↩</button>
+            </div>
           </div>
         </header>
 
@@ -240,7 +251,7 @@ export default function App() {
           {showWelcome && (
             <div className="welcome-card">
               <img src="/digitalization.gif" alt="bot" className="welcome-avatar" />
-              <div className="welcome-title">Hello! How can I help you today?</div>
+              <div className="welcome-title">Hello{name ? `, ${name.split(' ')[0]}` : ''}! How can I help you today?</div>
               <div className="welcome-sub">
                 Ask me about Arvind Fashions retail sales — brands, stores, regions,
                 KPIs, trends and more. I'll fetch the data and explain it in plain English.
@@ -259,7 +270,6 @@ export default function App() {
             <Message key={msg.id} message={msg} />
           ))}
 
-          {/* Thinking dots — shown only while waiting for first token */}
           {loading && progressNote && (
             <div className="thinking-row">
               <img src="/digitalization.gif" alt="bot" className="msg-avatar" style={{ background: 'transparent', border: 'none', boxShadow: 'none', width: 34, height: 34 }} />
@@ -282,5 +292,20 @@ export default function App() {
 
       <Toast message={toast} onDismiss={() => setToast(null)} />
     </div>
+  );
+}
+
+// ── Root component — wraps everything in MSAL provider ───────────────────────
+
+export default function App() {
+  return (
+    <MsalProvider instance={msalInstance}>
+      <AuthenticatedTemplate>
+        <ChatApp />
+      </AuthenticatedTemplate>
+      <UnauthenticatedTemplate>
+        <LoginPage />
+      </UnauthenticatedTemplate>
+    </MsalProvider>
   );
 }

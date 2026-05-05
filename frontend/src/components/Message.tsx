@@ -3,6 +3,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import type { ChatResponse } from '../api/types';
 import { ChartView } from './ChartView';
+import { submitFeedback } from '../api/client';
 
 export interface MessageItem {
   id: string;
@@ -21,7 +22,52 @@ type Feedback = 'up' | 'down' | null;
 
 export function Message({ message }: Props) {
   const [feedback, setFeedback] = useState<Feedback>(null);
+  const [feedbackSent, setFeedbackSent] = useState(false);
+  const [feedbackComment, setFeedbackComment] = useState('');
+  const [feedbackError, setFeedbackError] = useState<string | null>(null);
+  const [commentOpen, setCommentOpen] = useState(false);
+  const [commentSent, setCommentSent] = useState(false);
   const isUser = message.role === 'user';
+
+  async function handleFeedback(val: 'up' | 'down') {
+    if (feedbackSent) return;  // one vote per message
+    setFeedback(val);
+    setFeedbackError(null);
+    const traceId = message.response?.trace_id;
+    if (!traceId) {
+      setFeedbackError('Feedback is unavailable for this response.');
+      return;
+    }
+    try {
+      await submitFeedback(traceId, val === 'up' ? 1 : 0);
+      setFeedbackSent(true);
+      setCommentOpen(true);
+    } catch {
+      setFeedbackError('Could not save feedback.');
+    }
+  }
+
+  async function handleFeedbackComment() {
+    if (!feedback || commentSent) return;
+    const traceId = message.response?.trace_id;
+    if (!traceId) {
+      setFeedbackError('Feedback is unavailable for this response.');
+      return;
+    }
+    try {
+      await submitFeedback(
+        traceId,
+        feedback === 'up' ? 1 : 0,
+        feedbackComment.trim() || undefined,
+      );
+      setCommentSent(true);
+      setCommentOpen(false);
+      setFeedbackError(null);
+    } catch {
+      setFeedbackError('Could not save comment.');
+    }
+  }
+
   const r = message.response;
 
   if (isUser) {
@@ -191,17 +237,34 @@ export function Message({ message }: Props) {
             <div className="feedback-bar">
               <button
                 className={`feedback-btn${feedback === 'up' ? ' selected-up' : ''}`}
-                title="Helpful"
-                onClick={() => setFeedback(f => f === 'up' ? null : 'up')}
+                title={feedbackSent ? 'Feedback recorded' : 'Helpful'}
+                disabled={feedbackSent && feedback !== 'up'}
+                onClick={() => handleFeedback('up')}
               >👍</button>
               <button
                 className={`feedback-btn${feedback === 'down' ? ' selected-down' : ''}`}
-                title="Not helpful"
-                onClick={() => setFeedback(f => f === 'down' ? null : 'down')}
+                title={feedbackSent ? 'Feedback recorded' : 'Not helpful'}
+                disabled={feedbackSent && feedback !== 'down'}
+                onClick={() => handleFeedback('down')}
               >👎</button>
             </div>
           )}
         </div>
+        {r && commentOpen && !commentSent && (
+          <div className="feedback-comment">
+            <textarea
+              value={feedbackComment}
+              onChange={(event) => setFeedbackComment(event.target.value)}
+              placeholder="Add a short note"
+              rows={2}
+            />
+            <div className="feedback-comment-actions">
+              <button type="button" onClick={() => setCommentOpen(false)}>Skip</button>
+              <button type="button" onClick={handleFeedbackComment}>Send</button>
+            </div>
+          </div>
+        )}
+        {feedbackError && <div className="feedback-error">{feedbackError}</div>}
       </div>
     </div>
   );

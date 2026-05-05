@@ -1,5 +1,5 @@
 /* ===================================================
-   AI-DA-Agents · Arvind Fashions
+   Pulse AI · Arvind Fashions
    Design System – matching reference chatbot
    =================================================== */
 
@@ -541,6 +541,66 @@ html, body, #root {
 .feedback-btn.selected-up { background: rgba(22,163,74,0.12); border-color: rgba(22,163,74,0.3); }
 .feedback-btn.selected-down { background: rgba(220,38,38,0.10); border-color: rgba(220,38,38,0.25); }
 
+.feedback-comment {
+  margin-top: 6px;
+  max-width: 420px;
+  margin-left: auto;
+  padding: 8px;
+  border: 1px solid rgba(15,23,42,0.08);
+  border-radius: 8px;
+  background: rgba(255,255,255,0.72);
+  box-shadow: 0 8px 22px rgba(15,23,42,0.05);
+}
+
+.feedback-comment textarea {
+  width: 100%;
+  resize: vertical;
+  min-height: 48px;
+  border: 1px solid rgba(15,23,42,0.12);
+  border-radius: 6px;
+  padding: 7px 9px;
+  font: inherit;
+  font-size: 12.5px;
+  color: var(--text-main);
+  background: rgba(255,255,255,0.9);
+  outline: none;
+}
+
+.feedback-comment textarea:focus {
+  border-color: rgba(220,38,38,0.32);
+  box-shadow: 0 0 0 3px rgba(220,38,38,0.08);
+}
+
+.feedback-comment-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.feedback-comment-actions button {
+  height: 26px;
+  padding: 0 10px;
+  border-radius: 6px;
+  border: 1px solid var(--panel-border);
+  background: rgba(255,255,255,0.9);
+  color: var(--text-muted);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.feedback-comment-actions button:last-child {
+  border-color: rgba(220,38,38,0.24);
+  color: var(--brand-red);
+}
+
+.feedback-error {
+  margin-top: 5px;
+  text-align: right;
+  color: #b91c1c;
+  font-size: 11px;
+}
+
 /* ── Collapsible info panels ──────────────────────── */
 .info-panel {
   margin-top: 6px;
@@ -956,6 +1016,57 @@ details[open] .info-panel summary .chevron { transform: rotate(90deg); }
   50% { opacity: 0; }
 }
 
+/* ── User chip (auth) ───────────────────────────────── */
+.user-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(220,38,38,0.06);
+  border: 1px solid rgba(220,38,38,0.14);
+  border-radius: 20px;
+  padding: 3px 10px 3px 4px;
+  font-size: 12px;
+  color: var(--text-color);
+  max-width: 220px;
+  overflow: hidden;
+}
+
+.user-avatar {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+.user-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.signout-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-muted);
+  font-size: 14px;
+  padding: 0 0 0 4px;
+  line-height: 1;
+  transition: color 0.15s;
+  flex-shrink: 0;
+}
+.signout-btn:hover { color: var(--accent); }
+
 /* ── Responsive ─────────────────────────────────────── */
 @media (max-width: 768px) {
   .sidebar { position: fixed; height: 100%; z-index: 50; }
@@ -963,4 +1074,5 @@ details[open] .info-panel summary .chevron { transform: rotate(90deg); }
   .chatbot-messages { padding: 16px; }
   .msg-row { max-width: 100%; }
   .chat-input-shell { padding: 10px 12px; }
+  .user-name { display: none; }
 }

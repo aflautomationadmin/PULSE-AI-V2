@@ -45,6 +45,7 @@ export interface ChatResponse {
   last_entity_match: string | null;
   last_resolver_explanation: string | null;
   cache_status: string | null;
+  trace_id: string | null;
 }
 
 export interface Thread {

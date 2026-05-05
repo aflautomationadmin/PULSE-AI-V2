@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from contextlib import closing
+from decimal import Decimal
 from time import perf_counter
 from typing import Any
 
@@ -12,6 +13,24 @@ from src.sql_guard import ensure_safe_readonly_sql
 
 class DatabaseExecutionError(RuntimeError):
     """Raised when SQL execution fails."""
+
+
+def _round_row(row: list[Any], decimals: int = 2) -> list[Any]:
+    """
+    Round every float / Decimal value in a result row to ``decimals`` places.
+    Non-numeric values (strings, dates, None, int) are passed through unchanged.
+    Integers are intentionally left as-is — rounding 1200 to 1200.00 would
+    change the type unnecessarily.
+    """
+    out: list[Any] = []
+    for v in row:
+        if isinstance(v, float):
+            out.append(round(v, decimals))
+        elif isinstance(v, Decimal):
+            out.append(round(float(v), decimals))
+        else:
+            out.append(v)
+    return out
 
 
 def execute_stored_procedure(
@@ -73,7 +92,7 @@ def execute_stored_procedure(
         raise DatabaseExecutionError(str(exc)) from exc
 
     elapsed_ms = int((perf_counter() - started) * 1000)
-    row_values = [list(row) for row in rows]
+    row_values = [_round_row(list(row)) for row in rows]
 
     return SqlExecutionResult(
         columns=columns,
@@ -113,7 +132,7 @@ def execute_sql_query(sql: str, max_rows: int | None = None) -> SqlExecutionResu
         raise DatabaseExecutionError(str(exc)) from exc
 
     elapsed_ms = int((perf_counter() - started) * 1000)
-    row_values = [list(row) for row in rows]
+    row_values = [_round_row(list(row)) for row in rows]
 
     return SqlExecutionResult(
         columns=columns,

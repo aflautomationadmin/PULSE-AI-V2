@@ -3,33 +3,42 @@ from __future__ import annotations
 import re
 from collections import deque
 from datetime import datetime, timezone
-from typing import Literal
+from typing import Any, Literal
 
 from src.memory import MemoryTurn, ThreadSummary, _ROUTES, _VALID_THREAD_ID
 
 # ── MongoDB document structure ────────────────────────────────────────────────
 #
 # Collection: conversation_threads
-# One document per thread:
+# One document per (app_id, user_id, thread_id):
+#
 # {
-#   "thread_id":  "conv-20260406-abc123",   ← unique per user
-#   "app_id":     "ai-da-agents",           ← namespaces threads per app
-#   "user_id":    "user@arvind.com",        ← identifies the user (anonymous by default)
+#   "_id":        ObjectId("..."),
+#   "thread_id":  "thread-20260417-143022",
+#   "app_id":     "ai-da-agents",
+#   "user_id":    "anonymous",
+#   "created_at": ISODate("2026-04-17T14:30:00Z"),
+#   "updated_at": ISODate("2026-04-17T14:35:10Z"),
 #   "turns": [
 #     {
-#       "user":       "show me USPA sales",
-#       "assistant":  "USPA had ₹12L...",
-#       "route":      "business_question",
-#       "created_at": ISODate("2026-04-06T10:00:00Z")
+#       "user":            "give ABV trend for last 10 days",
+#       "assistant":       "The ABV over the last 10 days ranged from 4,278 to 6,744...",
+#       "route":           "business_question",
+#       "sql_used":        "EXEC GetABVai @date_from='2026-04-07', @date_to='2026-04-17', @time_grain='AUTO'",
+#       "sql_explanation": "Availability metrics from 7th to 17th April, grouped by day.",
+#       "citations":       [{"claim": "...", "source_column": "...", ...}],
+#       "verification":    {"verified": true, "issues": []},
+#       "chart_data":      {"chart_type": "line", "title": "...", "labels": [...], ...},
+#       "chart_type":      "line",
+#       "row_preview":     [{"Day": "07 Apr", "ABV": 6012.34}, ...],
+#       "created_at":      ISODate("2026-04-17T14:30:22Z")
 #     }
-#   ],
-#   "created_at": ISODate("2026-04-06T10:00:00Z"),
-#   "updated_at": ISODate("2026-04-06T10:05:00Z")
+#   ]
 # }
 #
-# Unique index: (app_id, user_id, thread_id)
-# → Each user has their own isolated thread namespace.
-# → Querying all threads for a user: find({"app_id": ..., "user_id": ...})
+# Indexes:
+#   UNIQUE  (app_id, user_id, thread_id)   → thread isolation per user
+#   INDEX   (app_id, user_id, updated_at)  → fast per-user thread listing
 # ─────────────────────────────────────────────────────────────────────────────
 
 _APP_ID = "ai-da-agents"
@@ -38,11 +47,12 @@ _ANONYMOUS_USER = "anonymous"
 
 class MongoConversationMemory:
     """
-    MongoDB-backed conversation memory.
+    MongoDB-backed conversation memory — full drop-in replacement for
+    ConversationMemory.
 
-    Identical public interface to ConversationMemory so it is a drop-in
-    replacement. All threads are kept in memory for fast reads; every
-    mutation is immediately persisted to MongoDB.
+    All threads are kept in memory for fast reads; every mutation is
+    immediately persisted to MongoDB.  If MongoDB is unreachable a write
+    fails silently — the in-memory state is always consistent.
     """
 
     def __init__(
@@ -53,11 +63,10 @@ class MongoConversationMemory:
         max_turns: int = 12,
         default_thread_id: str = "default",
         auto_create_thread: bool = True,
-        user_id: str | None = None,          # None → "anonymous" (ready for auth)
+        user_id: str | None = None,
     ) -> None:
         try:
             from pymongo import MongoClient, ASCENDING  # type: ignore
-            from pymongo.errors import ConnectionFailure  # type: ignore
         except ImportError as exc:
             raise RuntimeError(
                 "pymongo is required for MongoDB memory. Run: pip install pymongo"
@@ -68,14 +77,12 @@ class MongoConversationMemory:
         self._client = MongoClient(uri, serverSelectionTimeoutMS=5000)
         self._col = self._client[db_name][collection]
 
-        # Unique index on (app_id, user_id, thread_id)
-        # → isolates each user's threads; supports per-user queries in future
+        # Ensure indexes exist (idempotent)
         self._col.create_index(
             [("app_id", ASCENDING), ("user_id", ASCENDING), ("thread_id", ASCENDING)],
             unique=True,
             background=True,
         )
-        # Index for fast per-user thread listing
         self._col.create_index(
             [("app_id", ASCENDING), ("user_id", ASCENDING), ("updated_at", ASCENDING)],
             background=True,
@@ -92,7 +99,7 @@ class MongoConversationMemory:
 
         self._save_thread(self._active_thread_id)
 
-    # ── Public API (mirrors ConversationMemory) ───────────────────────────────
+    # ── Public API (mirrors ConversationMemory exactly) ───────────────────────
 
     def add_turn(
         self,
@@ -100,9 +107,27 @@ class MongoConversationMemory:
         user: str,
         assistant: str,
         route: Literal["business_question", "normal_chat"],
+        sql_used: str | None = None,
+        sql_explanation: str | None = None,
+        citations: list[dict[str, Any]] | None = None,
+        verification: dict[str, Any] | None = None,
+        chart_data: dict[str, Any] | None = None,
+        chart_type: str | None = None,
+        row_preview: list[dict[str, Any]] | None = None,
     ) -> None:
         self._current_turns().append(
-            MemoryTurn(user=user.strip(), assistant=assistant.strip(), route=route)
+            MemoryTurn(
+                user=user.strip(),
+                assistant=assistant.strip(),
+                route=route,
+                sql_used=sql_used,
+                sql_explanation=sql_explanation,
+                citations=citations or [],
+                verification=verification,
+                chart_data=chart_data,
+                chart_type=chart_type,
+                row_preview=row_preview,
+            )
         )
         self._save_thread(self._active_thread_id)
 
@@ -118,6 +143,20 @@ class MongoConversationMemory:
 
     def active_thread_id(self) -> str:
         return self._active_thread_id
+
+    def get_thread_turns(self, thread_id: str) -> list[MemoryTurn]:
+        """Return all turns for a thread without changing the active thread."""
+        normalized = self._normalize_thread_id(thread_id)
+        if normalized not in self._threads:
+            raise ValueError(f"Thread '{normalized}' does not exist.")
+        return list(self._threads[normalized])
+
+    def get_last_business_turn(self) -> MemoryTurn | None:
+        """Return the most recent business_question turn that has row_preview data."""
+        for turn in reversed(list(self._current_turns())):
+            if turn.route == "business_question" and turn.row_preview:
+                return turn
+        return None
 
     def list_threads(self) -> list[ThreadSummary]:
         ordered_ids = [self._active_thread_id] + sorted(
@@ -159,6 +198,10 @@ class MongoConversationMemory:
             lines.append(f"Turn {idx} | route={turn.route}")
             lines.append(f"User: {turn.user}")
             lines.append(f"Assistant: {turn.assistant}")
+            if turn.sql_used:
+                lines.append(f"SQL used: {turn.sql_used}")
+            if turn.sql_explanation:
+                lines.append(f"SQL meaning: {turn.sql_explanation}")
         return "\n".join(lines)
 
     def format_for_display(self) -> str:
@@ -190,16 +233,15 @@ class MongoConversationMemory:
         return normalized
 
     def _load_from_mongo(self) -> None:
-        """Load all threads for this user from MongoDB into memory."""
+        """Load all threads for this user from MongoDB into memory on startup."""
         try:
             docs = self._col.find({"app_id": _APP_ID, "user_id": self._user_id})
             for doc in docs:
                 thread_id = doc.get("thread_id", "")
                 if not _VALID_THREAD_ID.fullmatch(thread_id):
                     continue
-                raw_turns = doc.get("turns", [])
                 q: deque[MemoryTurn] = deque(maxlen=self._max_turns)
-                for t in raw_turns:
+                for t in doc.get("turns", []):
                     user = t.get("user", "")
                     assistant = t.get("assistant", "")
                     route = t.get("route", "")
@@ -207,25 +249,44 @@ class MongoConversationMemory:
                         continue
                     if route not in _ROUTES:
                         continue
-                    q.append(MemoryTurn(user=user, assistant=assistant, route=route))  # type: ignore
+                    q.append(MemoryTurn(
+                        user=user,
+                        assistant=assistant,
+                        route=route,  # type: ignore[arg-type]
+                        sql_used=t.get("sql_used"),
+                        sql_explanation=t.get("sql_explanation"),
+                        citations=t.get("citations") or [],
+                        verification=t.get("verification"),
+                        chart_data=t.get("chart_data"),
+                        chart_type=t.get("chart_type"),
+                        row_preview=t.get("row_preview"),
+                    ))
                 self._threads[thread_id] = q
         except Exception:
-            # Non-fatal: start with empty in-memory state if Mongo unreachable
-            pass
+            pass   # Non-fatal — start with empty in-memory state
 
     def _save_thread(self, thread_id: str) -> None:
-        """Upsert a single thread document in MongoDB."""
+        """Upsert the thread document in MongoDB with all rich fields."""
         turns = self._threads.get(thread_id, deque())
         now = datetime.now(timezone.utc)
+
         serialized_turns = [
             {
-                "user": t.user,
-                "assistant": t.assistant,
-                "route": t.route,
-                "created_at": now,
+                "user":            t.user,
+                "assistant":       t.assistant,
+                "route":           t.route,
+                "sql_used":        t.sql_used,
+                "sql_explanation": t.sql_explanation,
+                "citations":       t.citations or [],
+                "verification":    t.verification,
+                "chart_data":      t.chart_data,
+                "chart_type":      t.chart_type,
+                "row_preview":     t.row_preview,
+                "created_at":      now,
             }
             for t in turns
         ]
+
         try:
             self._col.update_one(
                 {
@@ -248,5 +309,4 @@ class MongoConversationMemory:
                 upsert=True,
             )
         except Exception:
-            # Non-fatal: in-memory state is always consistent even if Mongo write fails
-            pass
+            pass   # Non-fatal — in-memory state stays consistent
