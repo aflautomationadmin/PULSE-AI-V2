@@ -261,11 +261,15 @@ def run_json_agent(
         return response_model.model_validate(parsed)
 
 
-def run_embedding(*, text: str, model: str | None = None) -> list[float]:
+def run_embeddings(*, texts: list[str], model: str | None = None) -> list[list[float]]:
     settings = get_settings()
     selected_raw = model or settings.embedding_model
     if selected_raw is None or not selected_raw.strip():
         raise LlmRuntimeError("Missing embedding model. Set EMBEDDING_MODEL in .env.")
+    clean_texts = [text for text in texts if text and text.strip()]
+    if not clean_texts:
+        return []
+
     selected_model = selected_raw.strip()
     _configure_provider_keys()
     embedding = _load_litellm_embedding()
@@ -273,7 +277,7 @@ def run_embedding(*, text: str, model: str | None = None) -> list[float]:
     try:
         result = embedding(
             model=selected_model,
-            input=[text],
+            input=clean_texts,
             timeout=float(max(1, settings.embedding_timeout_seconds)),
             metadata=_lf_meta("embedding"),
         )
@@ -286,14 +290,22 @@ def run_embedding(*, text: str, model: str | None = None) -> list[float]:
     if not data:
         raise LlmRuntimeError("Embedding response did not contain data")
 
-    first = data[0]
-    vector = getattr(first, "embedding", None)
-    if vector is None and isinstance(first, dict):
-        vector = first.get("embedding")
-    if not isinstance(vector, list) or not vector:
-        raise LlmRuntimeError("Embedding response did not contain a valid vector")
+    vectors: list[list[float]] = []
+    for item in data:
+        vector = getattr(item, "embedding", None)
+        if vector is None and isinstance(item, dict):
+            vector = item.get("embedding")
+        if not isinstance(vector, list) or not vector:
+            raise LlmRuntimeError("Embedding response did not contain a valid vector")
+        vectors.append([float(value) for value in vector])
 
-    out: list[float] = []
-    for value in vector:
-        out.append(float(value))
-    return out
+    if len(vectors) != len(clean_texts):
+        raise LlmRuntimeError("Embedding response count did not match input count")
+    return vectors
+
+
+def run_embedding(*, text: str, model: str | None = None) -> list[float]:
+    vectors = run_embeddings(texts=[text], model=model)
+    if not vectors:
+        raise LlmRuntimeError("Embedding response did not contain a valid vector")
+    return vectors[0]

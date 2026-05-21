@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import re
 import sqlite3
 from dataclasses import dataclass
@@ -9,7 +10,10 @@ from difflib import SequenceMatcher
 from pathlib import Path
 
 from src.db.connection import get_connection
-from src.llm import run_embedding
+from src.llm import run_embedding, run_embeddings
+
+logger = logging.getLogger(__name__)
+_EMBEDDING_BATCH_SIZE = 96
 
 _ENTITY_FUZZY_STOPWORDS = {
     "A",
@@ -136,14 +140,31 @@ class ColumnEntityResolver:
 
     def _build_index_from_db(self) -> list[tuple[str, list[float]]]:
         values = self._fetch_distinct_values()
+        if not values:
+            return []
+
+        if not self.embedding_model or not self.use_value_embeddings:
+            return [(entity_value, []) for entity_value in values]
+
         entries: list[tuple[str, list[float]]] = []
-        for entity_value in values:
-            embedding = (
-                self._embed(entity_value)
-                if self.embedding_model and self.use_value_embeddings
-                else None
-            )
-            entries.append((entity_value, embedding or []))
+        for idx in range(0, len(values), _EMBEDDING_BATCH_SIZE):
+            batch = values[idx : idx + _EMBEDDING_BATCH_SIZE]
+            try:
+                embeddings = run_embeddings(texts=batch, model=self.embedding_model)
+            except Exception:
+                logger.exception("Failed to embed %s entity batch", self.column_name)
+                embeddings = []
+
+            if len(embeddings) != len(batch):
+                logger.warning(
+                    "Embedding count mismatch for %s: expected %s, got %s",
+                    self.column_name,
+                    len(batch),
+                    len(embeddings),
+                )
+                embeddings = [[] for _ in batch]
+
+            entries.extend(zip(batch, embeddings, strict=False))
         return entries
 
     def _fetch_distinct_values(self) -> list[str]:
@@ -160,6 +181,7 @@ class ColumnEntityResolver:
                 cursor.execute(query)
                 rows = cursor.fetchall()
         except Exception:
+            logger.exception("Failed to fetch distinct entity values for %s", self.column_name)
             return []
 
         values: list[str] = []
@@ -173,6 +195,7 @@ class ColumnEntityResolver:
         try:
             return run_embedding(text=text, model=self.embedding_model)
         except Exception:
+            logger.exception("Failed to embed question for %s resolver", self.column_name)
             return None
 
     def _connect(self) -> sqlite3.Connection:
