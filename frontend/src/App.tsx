@@ -96,7 +96,7 @@ function ChatApp() {
     try {
       let fullText = '';
 
-      for await (const event of streamMessage(text)) {
+      for await (const event of streamMessage(text, activeThread || undefined)) {
         if (event.type === 'start') {
           stopProgress();
 

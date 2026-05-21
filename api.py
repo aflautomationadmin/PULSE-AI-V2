@@ -55,6 +55,7 @@ app.add_middleware(
 
 class ChatRequest(BaseModel):
     message: str
+    thread_id: str | None = None
 
 
 class ThreadCreateRequest(BaseModel):
@@ -75,6 +76,11 @@ def chat(
     user_email: str = Depends(get_current_user),
 ) -> dict[str, Any]:
     orch = _get_orchestrator(user_email)
+    if req.thread_id:
+        try:
+            orch.switch_thread(req.thread_id)
+        except ValueError as exc:
+            raise HTTPException(status_code=404, detail=str(exc))
     try:
         reply = orch.handle_user_message(req.message)
     except Exception as exc:
@@ -95,6 +101,11 @@ def chat_stream(
     user_email: str = Depends(get_current_user),
 ) -> StreamingResponse:
     orch = _get_orchestrator(user_email)
+    if req.thread_id:
+        try:
+            orch.switch_thread(req.thread_id)
+        except ValueError as exc:
+            raise HTTPException(status_code=404, detail=str(exc))
 
     def event_generator():
         try:

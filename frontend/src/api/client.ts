@@ -38,8 +38,8 @@ async function _authHeaders(): Promise<HeadersInit> {
 }
 
 // ── Chat (non-streaming) ──────────────────────────────────────────────────────
-export async function sendMessage(message: string): Promise<ChatResponse> {
-  const { data } = await api.post<ChatResponse>('/chat', { message });
+export async function sendMessage(message: string, thread_id?: string): Promise<ChatResponse> {
+  const { data } = await api.post<ChatResponse>('/chat', { message, thread_id });
   return data;
 }
 
@@ -59,13 +59,16 @@ export type StreamEvent =
       trace_id?: string; }
   | { type: 'error';    content: string };
 
-export async function* streamMessage(message: string): AsyncGenerator<StreamEvent> {
+export async function* streamMessage(
+  message: string,
+  thread_id?: string,
+): AsyncGenerator<StreamEvent> {
   const headers = await _authHeaders();
 
   const response = await fetch('/chat/stream', {
     method: 'POST',
     headers,
-    body: JSON.stringify({ message }),
+    body: JSON.stringify({ message, thread_id }),
   });
 
   if (!response.ok || !response.body) {
