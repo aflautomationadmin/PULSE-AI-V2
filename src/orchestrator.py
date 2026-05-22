@@ -354,16 +354,19 @@ class ChatOrchestrator:
 
         # ── Langfuse trace — one trace per user request ──────────────────────
         from src.tracing import current_trace_id, get_langfuse, set_trace_context
+        _trace_id = str(uuid4())
+        set_trace_context(_trace_id, self._user_id)
         _lf = get_langfuse()
         if _lf:
             try:
-                _trace = _lf.trace(
+                _lf.trace(
+                    id=_trace_id,
                     name="chat_request",
                     user_id=self._user_id,
                     input=cleaned,
                     tags=["chat"],
                 )
-                set_trace_context(_trace.id, self._user_id)
+                _lf.flush()
             except Exception:
                 pass  # tracing is non-fatal
 

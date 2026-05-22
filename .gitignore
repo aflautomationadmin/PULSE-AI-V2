@@ -27,6 +27,16 @@ test-state-index-*.json
 
 # Local environment secrets
 .env
+.env.docker
+.env.docker.example
+
+# Local Docker setup files
+.dockerignore
+Dockerfile.api
+docker-compose.local.yml
+LOCAL_DOCKER.md
+frontend/Dockerfile
+frontend/nginx.conf
 
 # Node / frontend build artefacts
 frontend/node_modules/
