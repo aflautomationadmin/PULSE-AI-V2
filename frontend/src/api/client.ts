@@ -138,12 +138,13 @@ export async function clearSqlCache(): Promise<{ cleared: number }> {
 }
 
 export async function submitFeedback(
-  trace_id: string,
+  trace_id: string | null | undefined,
   score: 1 | 0,
   comment?: string,
+  thread_id?: string,
 ): Promise<{ ok: boolean; trace_id: string; score_id: string }> {
   try {
-    const { data } = await api.post('/feedback', { trace_id, score, comment });
+    const { data } = await api.post('/feedback', { trace_id, score, comment, thread_id });
     return data;
   } catch (error) {
     if (axios.isAxiosError(error)) {

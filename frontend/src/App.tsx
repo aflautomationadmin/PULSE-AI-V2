@@ -267,7 +267,7 @@ function ChatApp() {
           )}
 
           {messages.map(msg => (
-            <Message key={msg.id} message={msg} />
+            <Message key={msg.id} message={msg} threadId={activeThread || undefined} />
           ))}
 
           {loading && progressNote && (
