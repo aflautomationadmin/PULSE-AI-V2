@@ -135,6 +135,7 @@ class ChatOrchestrator:
         self.last_sql_cache_status: str | None = None
         self.last_entity_match: str | None = None
         self.last_resolver_explanation: str | None = None
+        self.last_trace_id: str | None = None
 
     def refresh_schema(self) -> str:
         return self.schema_cache.refresh()
@@ -356,6 +357,7 @@ class ChatOrchestrator:
         # ── Langfuse trace — one trace per user request ──────────────────────
         from src.tracing import current_trace_id, get_langfuse, set_trace_context
         _trace_id = str(uuid4())
+        self.last_trace_id = _trace_id
         set_trace_context(_trace_id, self._user_id)
         _lf = get_langfuse()
         if _lf:

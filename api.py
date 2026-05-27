@@ -114,6 +114,16 @@ def chat_stream(
     def event_generator():
         try:
             for event in orch.stream_handle_user_message(req.message):
+                trace_id = event.get("trace_id") or orch.last_trace_id
+                if trace_id and event.get("type") in {"complete", "metadata", "error"}:
+                    event["trace_id"] = trace_id
+                    logger.info(
+                        "Chat stream event includes trace_id=%s type=%s thread_id=%s user=%s",
+                        trace_id,
+                        event.get("type"),
+                        orch.active_thread(),
+                        user_email,
+                    )
                 yield f"data: {json.dumps(event, default=str)}\n\n"
         except Exception as exc:
             yield f"data: {json.dumps({'type': 'error', 'content': str(exc)})}\n\n"
@@ -232,6 +242,7 @@ def submit_feedback(
     if not trace_id:
         orch = _get_orchestrator(user_email)
         thread_id = req.thread_id or orch.active_thread()
+        trace_id = orch.last_trace_id
         for message in reversed(orch.get_thread_messages(thread_id)):
             candidate = message.get("trace_id")
             if message.get("role") == "bot" and isinstance(candidate, str) and candidate:
