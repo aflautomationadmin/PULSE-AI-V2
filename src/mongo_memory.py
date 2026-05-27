@@ -114,6 +114,7 @@ class MongoConversationMemory:
         chart_data: dict[str, Any] | None = None,
         chart_type: str | None = None,
         row_preview: list[dict[str, Any]] | None = None,
+        trace_id: str | None = None,
     ) -> None:
         self._current_turns().append(
             MemoryTurn(
@@ -127,6 +128,7 @@ class MongoConversationMemory:
                 chart_data=chart_data,
                 chart_type=chart_type,
                 row_preview=row_preview,
+                trace_id=trace_id,
             )
         )
         self._save_thread(self._active_thread_id)
@@ -260,6 +262,7 @@ class MongoConversationMemory:
                         chart_data=t.get("chart_data"),
                         chart_type=t.get("chart_type"),
                         row_preview=t.get("row_preview"),
+                        trace_id=t.get("trace_id"),
                     ))
                 self._threads[thread_id] = q
         except Exception:
@@ -282,6 +285,7 @@ class MongoConversationMemory:
                 "chart_data":      t.chart_data,
                 "chart_type":      t.chart_type,
                 "row_preview":     t.row_preview,
+                "trace_id":        t.trace_id,
                 "created_at":      now,
             }
             for t in turns

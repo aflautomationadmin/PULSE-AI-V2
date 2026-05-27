@@ -261,6 +261,7 @@ class ChatOrchestrator:
                 "chart_type": turn.chart_type,
                 "row_preview": turn.row_preview,
                 "last_resolver_explanation": None,
+                "trace_id": turn.trace_id,
             })
         return messages
 
@@ -376,14 +377,24 @@ class ChatOrchestrator:
             classification = classify_question(classifier_input)
         except Exception as exc:
             msg = f"I could not reach the LLM service: {exc}"
-            self.memory.add_turn(user=cleaned, assistant=msg, route="normal_chat")
+            self.memory.add_turn(
+                user=cleaned,
+                assistant=msg,
+                route="normal_chat",
+                trace_id=current_trace_id(),
+            )
             yield {"type": "error", "content": msg}
             return
 
         # ── Normal chat ─────────────────────────────────────────────────────
         if classification.label == "normal_chat":
             answer = respond_to_normal_chat(self._build_contextual_input(cleaned))
-            self.memory.add_turn(user=cleaned, assistant=answer, route="normal_chat")
+            self.memory.add_turn(
+                user=cleaned,
+                assistant=answer,
+                route="normal_chat",
+                trace_id=current_trace_id(),
+            )
             yield {"type": "complete", "content": answer, "trace_id": current_trace_id()}
             return
 
@@ -391,7 +402,10 @@ class ChatOrchestrator:
         domain = check_domain(self._build_contextual_input(cleaned))
         if not domain.in_scope:
             self.memory.add_turn(
-                user=cleaned, assistant=domain.rejection_message, route="normal_chat"
+                user=cleaned,
+                assistant=domain.rejection_message,
+                route="normal_chat",
+                trace_id=current_trace_id(),
             )
             yield {
                 "type": "complete",
@@ -442,7 +456,12 @@ class ChatOrchestrator:
             clarification = check_needs_clarification(question_with_memory, context_prompt)
             if clarification.needs_clarification and clarification.clarifying_question.strip():
                 msg = clarification.clarifying_question.strip()
-                self.memory.add_turn(user=question, assistant=msg, route="normal_chat")
+                self.memory.add_turn(
+                    user=question,
+                    assistant=msg,
+                    route="normal_chat",
+                    trace_id=current_trace_id(),
+                )
                 yield {"type": "complete", "content": msg, "trace_id": current_trace_id()}
                 return
 
@@ -476,7 +495,9 @@ class ChatOrchestrator:
                 )
                 self.memory.add_turn(
                     user=question, assistant=follow_up,
-                    route="business_question", sql_used=sql,
+                    route="business_question",
+                    sql_used=sql,
+                    trace_id=current_trace_id(),
                 )
                 yield {
                     "type": "complete",
@@ -507,7 +528,12 @@ class ChatOrchestrator:
             except Exception as exc:
                 executor.shutdown(wait=False)
                 err = f"I could not complete the summary: {exc}"
-                self.memory.add_turn(user=question, assistant=err, route="business_question")
+                self.memory.add_turn(
+                    user=question,
+                    assistant=err,
+                    route="business_question",
+                    trace_id=current_trace_id(),
+                )
                 yield {"type": "error", "content": err}
                 return
 
@@ -572,9 +598,10 @@ class ChatOrchestrator:
                 chart_data=chart_data_dict,
                 chart_type=visuals.chart_type,
                 row_preview=visuals.row_preview,
+                trace_id=current_trace_id(),
             )
 
-            from src.tracing import current_trace_id, get_langfuse
+            from src.tracing import get_langfuse
             _tid = current_trace_id()
             # Update Langfuse trace with the final answer
             _lf2 = get_langfuse()
@@ -601,15 +628,30 @@ class ChatOrchestrator:
 
         except SqlGuardError as exc:
             msg = f"I cannot run that query safely: {exc}"
-            self.memory.add_turn(user=question, assistant=msg, route="business_question")
+            self.memory.add_turn(
+                user=question,
+                assistant=msg,
+                route="business_question",
+                trace_id=current_trace_id(),
+            )
             yield {"type": "error", "content": msg}
         except DatabaseExecutionError as exc:
             msg = f"I hit a database error while running the query: {exc}"
-            self.memory.add_turn(user=question, assistant=msg, route="business_question")
+            self.memory.add_turn(
+                user=question,
+                assistant=msg,
+                route="business_question",
+                trace_id=current_trace_id(),
+            )
             yield {"type": "error", "content": msg}
         except Exception as exc:
             msg = f"I could not complete the SQL workflow: {exc}"
-            self.memory.add_turn(user=question, assistant=msg, route="business_question")
+            self.memory.add_turn(
+                user=question,
+                assistant=msg,
+                route="business_question",
+                trace_id=current_trace_id(),
+            )
             yield {"type": "error", "content": msg}
 
     def _handle_business_question(self, question: str) -> BotReply:
@@ -848,17 +890,31 @@ class ChatOrchestrator:
             )
         except DatabaseExecutionError as exc:
             msg = f"I hit a database error running the {kpi_result.kpi} procedure: {exc}"
-            self.memory.add_turn(user=question, assistant=msg, route="business_question", sql_used=exec_sql)
+            self.memory.add_turn(
+                user=question,
+                assistant=msg,
+                route="business_question",
+                sql_used=exec_sql,
+                trace_id=current_trace_id(),
+            )
             yield {"type": "error", "content": msg}
             return
 
         if execution_result.row_count == 0:
             follow_up = handle_empty_result(question, exec_sql, context_prompt)
             self.memory.add_turn(
-                user=question, assistant=follow_up,
-                route="business_question", sql_used=exec_sql,
+                user=question,
+                assistant=follow_up,
+                route="business_question",
+                sql_used=exec_sql,
+                trace_id=current_trace_id(),
             )
-            yield {"type": "complete", "content": follow_up, "sql_used": exec_sql}
+            yield {
+                "type": "complete",
+                "content": follow_up,
+                "sql_used": exec_sql,
+                "trace_id": current_trace_id(),
+            }
             return
 
         yield {"type": "start", "sql_used": exec_sql}
@@ -884,7 +940,12 @@ class ChatOrchestrator:
         except Exception as exc:
             executor.shutdown(wait=False)
             err = f"I could not complete the {kpi_result.kpi} summary: {exc}"
-            self.memory.add_turn(user=question, assistant=err, route="business_question")
+            self.memory.add_turn(
+                user=question,
+                assistant=err,
+                route="business_question",
+                trace_id=current_trace_id(),
+            )
             yield {"type": "error", "content": err}
             return
 
@@ -932,6 +993,7 @@ class ChatOrchestrator:
             chart_data=chart_data_dict,
             chart_type=visuals.chart_type,
             row_preview=visuals.row_preview,
+            trace_id=current_trace_id(),
         )
 
         yield {
@@ -981,6 +1043,7 @@ class ChatOrchestrator:
             chart_data=chart_data_dict,
             chart_type=chart_type,
             row_preview=last_turn.row_preview,
+            trace_id=current_trace_id(),
         )
 
         yield {

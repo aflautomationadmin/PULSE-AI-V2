@@ -35,6 +35,7 @@ class MemoryTurn:
     chart_data: dict[str, Any] | None = None     # ChartData serialised as dict
     chart_type: str | None = None
     row_preview: list[dict[str, Any]] | None = None
+    trace_id: str | None = None
     # legacy — kept for backward compat when reading old JSON files
     chart_path: str | None = None
 
@@ -76,6 +77,7 @@ class ConversationMemory:
         chart_data: dict[str, Any] | None = None,
         chart_type: str | None = None,
         row_preview: list[dict[str, Any]] | None = None,
+        trace_id: str | None = None,
     ) -> None:
         self._current_turns().append(
             MemoryTurn(
@@ -89,6 +91,7 @@ class ConversationMemory:
                 chart_data=chart_data,
                 chart_type=chart_type,
                 row_preview=row_preview,
+                trace_id=trace_id,
             )
         )
         self._persist()
@@ -252,6 +255,7 @@ class ConversationMemory:
                         chart_data=raw_turn.get("chart_data"),
                         chart_type=raw_turn.get("chart_type"),
                         row_preview=raw_turn.get("row_preview"),
+                        trace_id=raw_turn.get("trace_id"),
                         chart_path=raw_turn.get("chart_path"),  # legacy
                     )
                 )
