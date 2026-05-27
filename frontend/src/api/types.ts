@@ -52,6 +52,7 @@ export interface Thread {
   thread_id: string;
   turn_count: number;
   is_active: boolean;
+  title: string;
 }
 
 export interface ThreadsResponse {

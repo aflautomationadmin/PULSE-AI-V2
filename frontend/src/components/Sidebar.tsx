@@ -34,7 +34,7 @@ export function Sidebar({ threads, activeThread, onThreadChange, onNotify }: Pro
     try {
       await createThread(id);
       onThreadChange(id, []);
-      onNotify(`New thread "${id}" created`);
+      onNotify('New conversation created');
     } catch { onNotify('Failed to create thread'); }
     finally { setBusy(''); }
   }
@@ -89,10 +89,10 @@ export function Sidebar({ threads, activeThread, onThreadChange, onNotify }: Pro
               key={t.thread_id}
               className={`thread-item${isActive ? ' active' : ''}`}
               onClick={() => handleSwitch(t.thread_id)}
-              title={t.thread_id}
+              title={`${t.title} (${t.thread_id})`}
             >
               <span className="thread-dot" />
-              <span className="thread-name">{t.thread_id}</span>
+              <span className="thread-name">{t.title || t.thread_id}</span>
               <span className="thread-turns">{t.turn_count}t</span>
             </div>
           );

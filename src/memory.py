@@ -45,6 +45,7 @@ class ThreadSummary:
     thread_id: str
     turn_count: int
     is_active: bool
+    title: str
 
 
 class ConversationMemory:
@@ -155,16 +156,13 @@ class ConversationMemory:
         if not self._threads:
             return []
 
-        ordered_ids = [self._active_thread_id] + sorted(
-            thread_id
-            for thread_id in self._threads
-            if thread_id != self._active_thread_id
-        )
+        ordered_ids = sorted(self._threads, reverse=True)
         return [
             ThreadSummary(
                 thread_id=thread_id,
                 turn_count=len(self._threads[thread_id]),
                 is_active=(thread_id == self._active_thread_id),
+                title=self._thread_title(thread_id),
             )
             for thread_id in ordered_ids
         ]
@@ -193,6 +191,14 @@ class ConversationMemory:
     def _ensure_thread(self, thread_id: str) -> None:
         if thread_id not in self._threads:
             self._threads[thread_id] = deque(maxlen=self._max_turns)
+
+    def _thread_title(self, thread_id: str) -> str:
+        turns = self._threads.get(thread_id)
+        if turns:
+            first_question = next((turn.user.strip() for turn in turns if turn.user.strip()), "")
+            if first_question:
+                return first_question[:57] + "..." if len(first_question) > 60 else first_question
+        return "Default conversation" if thread_id == "default" else "New conversation"
 
     def _normalize_thread_id(self, thread_id: str) -> str:
         normalized = thread_id.strip()
