@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import threading
 from contextlib import asynccontextmanager
 from dataclasses import asdict
@@ -16,6 +17,8 @@ from src.auth import get_current_user
 from src.business_context import format_context_for_prompt
 from src.orchestrator import ChatOrchestrator
 from src.tracing import get_langfuse
+
+logger = logging.getLogger(__name__)
 
 
 # ── Per-user orchestrator registry ────────────────────────────────────────────
@@ -231,6 +234,13 @@ def submit_feedback(
 
     try:
         score_id = str(uuid5(NAMESPACE_URL, f"{req.trace_id}:user-feedback"))
+        logger.info(
+            "Submitting Langfuse feedback score trace_id=%s score=%s user=%s comment_present=%s",
+            req.trace_id,
+            req.score,
+            user_email,
+            bool(req.comment),
+        )
         lf.score(
             id=score_id,
             trace_id=req.trace_id,
@@ -241,8 +251,10 @@ def submit_feedback(
         )
         lf.flush()
     except Exception as exc:
+        logger.exception("Langfuse feedback write failed trace_id=%s", req.trace_id)
         raise HTTPException(status_code=502, detail=f"Langfuse feedback write failed: {exc}")
 
+    logger.info("Langfuse feedback score submitted score_id=%s trace_id=%s", score_id, req.trace_id)
     return {"ok": True, "trace_id": req.trace_id, "score_id": score_id}
 
 

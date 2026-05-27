@@ -42,8 +42,8 @@ export function Message({ message }: Props) {
       await submitFeedback(traceId, val === 'up' ? 1 : 0);
       setFeedbackSent(true);
       setCommentOpen(true);
-    } catch {
-      setFeedbackError('Could not save feedback.');
+    } catch (error) {
+      setFeedbackError(error instanceof Error ? error.message : 'Could not save feedback.');
     }
   }
 
@@ -63,8 +63,8 @@ export function Message({ message }: Props) {
       setCommentSent(true);
       setCommentOpen(false);
       setFeedbackError(null);
-    } catch {
-      setFeedbackError('Could not save comment.');
+    } catch (error) {
+      setFeedbackError(error instanceof Error ? error.message : 'Could not save comment.');
     }
   }
 

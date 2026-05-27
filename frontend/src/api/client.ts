@@ -142,6 +142,17 @@ export async function submitFeedback(
   score: 1 | 0,
   comment?: string,
 ): Promise<{ ok: boolean; trace_id: string; score_id: string }> {
-  const { data } = await api.post('/feedback', { trace_id, score, comment });
-  return data;
+  try {
+    const { data } = await api.post('/feedback', { trace_id, score, comment });
+    return data;
+  } catch (error) {
+    if (axios.isAxiosError(error)) {
+      const detail = error.response?.data?.detail;
+      const message = typeof detail === 'string'
+        ? detail
+        : `Feedback request failed: ${error.response?.status ?? 'network error'}`;
+      throw new Error(message);
+    }
+    throw error;
+  }
 }
