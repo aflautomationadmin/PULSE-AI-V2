@@ -91,6 +91,37 @@
       "formula": "100.0 * SUM(NETAMT) / NULLIF(SUM(TARGET_AMT), 0)",
       "sql_hint": "Return percentage as numeric value"
     }
+    ,
+    {
+      "name": "Average Basket Sales",
+      "description": "Sales quantity per bill.",
+      "formula": "SUM(QTY) / NULLIF(COUNT(DISTINCT INV_CNT), 0)",
+      "sql_hint": "Use SUM(QTY) divided by distinct invoice count"
+    },
+    {
+      "name": "Discount Percent",
+      "description": "Discount as a share of total MRP.",
+      "formula": "SUM(DISCOUNT) / NULLIF(SUM(TOTAL_MRP), 0)",
+      "sql_hint": "Return discount ratio as numeric value"
+    },
+    {
+      "name": "Average Sales Value",
+      "description": "Net sales amount per unit sold.",
+      "formula": "SUM(NETAMT) / NULLIF(SUM(QTY), 0)",
+      "sql_hint": "Divide total net amount by total quantity sold"
+    },
+    {
+      "name": "Sales Per Square Foot Per Day",
+      "description": "Sales per square foot per day using average size and store count.",
+      "formula": "(SUM(NETAMT) / NULLIF(AVG(SIZE), 0)) / NULLIF(COUNT(DISTINCT STORE_NAME), 0)",
+      "sql_hint": "Use average SIZE and distinct STORE_NAME count in the denominator"
+    },
+    {
+      "name": "Sell Thru Percent",
+      "description": "Sales divided by stock on hand plus sales.",
+      "formula": "SUM(NETAMT) / NULLIF(SUM(SOH) + SUM(NETAMT), 0)",
+      "sql_hint": "Requires stock-on-hand data (SOH) in the source table or view"
+    }
   ],
   "kpi_procedures": [
     {
@@ -127,6 +158,172 @@
         "WEEK":    "user explicitly says weekly",
         "MONTH":   "user explicitly says monthly",
         "QUARTER": "user explicitly says quarterly"
+      }
+    }
+    ,
+    {
+      "kpi": "ABS",
+      "aliases": ["abs", "average basket sales", "average basket sale", "sales per bill", "basket sales"],
+      "procedure": "GetABSai",
+      "description": "Average Basket Sales = SUM(QTY) / COUNT(DISTINCT INV_CNT) for SALES invoices.",
+      "output_columns": ["<group_by dimension columns>", "<date period column when time_grain is set>", "ABS"],
+      "parameters": {
+        "date_from":    "DATE string (YYYY-MM-DD) or null — explicit start date, takes precedence over date_preset",
+        "date_to":      "DATE string (YYYY-MM-DD) or null — explicit end date, defaults to today",
+        "date_preset":  "MTD|QTD|YTD|LAST_7|LAST_14|LAST_30|LAST_MONTH — shorthand period used only when date_from is null",
+        "time_grain":   "null|AUTO|DAY|WEEK|MONTH|QUARTER — null means single aggregate, AUTO means infer grain from span",
+        "brand":        "brand name filter (LIKE match) or null",
+        "subbrand":     "subbrand filter (LIKE match) or null",
+        "store_name":   "store name filter (LIKE match) or null",
+        "store_format": "store format filter (LIKE match) or null",
+        "storecode":    "storecode exact match or null",
+        "channel":      "channel exact match (e.g. OFFLINE, ONLINE) or null",
+        "region":       "region exact match or null",
+        "state":        "state filter (LIKE match) or null",
+        "city":         "city filter (LIKE match) or null",
+        "category":     "category filter (LIKE match) or null",
+        "subclass":     "subclass filter (LIKE match) or null",
+        "group_by":     "comma-separated dimension column names or null — allowed: BRAND,SUBBRAND,STORE_NAME,STORE_FORMAT,STORECODE,CHANNEL,REGION,STATE,CITY,CATEGORY,SUBCLASS"
+      },
+      "time_grain_rules": {
+        "null":    "single aggregate or breakdown by dimensions only — no date column in output",
+        "AUTO":    "trend requested or date range provided without explicit grain",
+        "DAY":     "daily",
+        "WEEK":    "weekly",
+        "MONTH":   "monthly",
+        "QUARTER": "quarterly"
+      }
+    },
+    {
+      "kpi": "Discount Percent",
+      "aliases": ["discount percent", "discount %", "discount rate"],
+      "procedure": "GetDiscountPctai",
+      "description": "Discount Percent = SUM(DISCOUNT) / SUM(TOTAL_MRP).",
+      "output_columns": ["<group_by dimension columns>", "<date period column when time_grain is set>", "DiscountPct"],
+      "parameters": {
+        "date_from":    "DATE string (YYYY-MM-DD) or null — explicit start date, takes precedence over date_preset",
+        "date_to":      "DATE string (YYYY-MM-DD) or null — explicit end date, defaults to today",
+        "date_preset":  "MTD|QTD|YTD|LAST_7|LAST_14|LAST_30|LAST_MONTH — shorthand period used only when date_from is null",
+        "time_grain":   "null|AUTO|DAY|WEEK|MONTH|QUARTER — null means single aggregate, AUTO means infer grain from span",
+        "brand":        "brand name filter (LIKE match) or null",
+        "subbrand":     "subbrand filter (LIKE match) or null",
+        "store_name":   "store name filter (LIKE match) or null",
+        "store_format": "store format filter (LIKE match) or null",
+        "storecode":    "storecode exact match or null",
+        "channel":      "channel exact match (e.g. OFFLINE, ONLINE) or null",
+        "region":       "region exact match or null",
+        "state":        "state filter (LIKE match) or null",
+        "city":         "city filter (LIKE match) or null",
+        "category":     "category filter (LIKE match) or null",
+        "subclass":     "subclass filter (LIKE match) or null",
+        "group_by":     "comma-separated dimension column names or null — allowed: BRAND,SUBBRAND,STORE_NAME,STORE_FORMAT,STORECODE,CHANNEL,REGION,STATE,CITY,CATEGORY,SUBCLASS"
+      },
+      "time_grain_rules": {
+        "null":    "single aggregate or breakdown by dimensions only — no date column in output",
+        "AUTO":    "trend requested or date range provided without explicit grain",
+        "DAY":     "daily",
+        "WEEK":    "weekly",
+        "MONTH":   "monthly",
+        "QUARTER": "quarterly"
+      }
+    },
+    {
+      "kpi": "ASV",
+      "aliases": ["asv", "average sales value", "sales value per qty"],
+      "procedure": "GetASVai",
+      "description": "Average Sales Value = SUM(NETAMT) / SUM(QTY).",
+      "output_columns": ["<group_by dimension columns>", "<date period column when time_grain is set>", "ASV"],
+      "parameters": {
+        "date_from":    "DATE string (YYYY-MM-DD) or null — explicit start date, takes precedence over date_preset",
+        "date_to":      "DATE string (YYYY-MM-DD) or null — explicit end date, defaults to today",
+        "date_preset":  "MTD|QTD|YTD|LAST_7|LAST_14|LAST_30|LAST_MONTH — shorthand period used only when date_from is null",
+        "time_grain":   "null|AUTO|DAY|WEEK|MONTH|QUARTER — null means single aggregate, AUTO means infer grain from span",
+        "brand":        "brand name filter (LIKE match) or null",
+        "subbrand":     "subbrand filter (LIKE match) or null",
+        "store_name":   "store name filter (LIKE match) or null",
+        "store_format": "store format filter (LIKE match) or null",
+        "storecode":    "storecode exact match or null",
+        "channel":      "channel exact match (e.g. OFFLINE, ONLINE) or null",
+        "region":       "region exact match or null",
+        "state":        "state filter (LIKE match) or null",
+        "city":         "city filter (LIKE match) or null",
+        "category":     "category filter (LIKE match) or null",
+        "subclass":     "subclass filter (LIKE match) or null",
+        "group_by":     "comma-separated dimension column names or null — allowed: BRAND,SUBBRAND,STORE_NAME,STORE_FORMAT,STORECODE,CHANNEL,REGION,STATE,CITY,CATEGORY,SUBCLASS"
+      },
+      "time_grain_rules": {
+        "null":    "single aggregate or breakdown by dimensions only — no date column in output",
+        "AUTO":    "trend requested or date range provided without explicit grain",
+        "DAY":     "daily",
+        "WEEK":    "weekly",
+        "MONTH":   "monthly",
+        "QUARTER": "quarterly"
+      }
+    },
+    {
+      "kpi": "SSPD",
+      "aliases": ["sspd", "sales per square foot per day", "sales per sqft per day"],
+      "procedure": "GetSSPDAi",
+      "description": "Sales Per Square Foot Per Day using SIZE and distinct store count.",
+      "output_columns": ["<group_by dimension columns>", "<date period column when time_grain is set>", "SSPD"],
+      "parameters": {
+        "date_from":    "DATE string (YYYY-MM-DD) or null — explicit start date, takes precedence over date_preset",
+        "date_to":      "DATE string (YYYY-MM-DD) or null — explicit end date, defaults to today",
+        "date_preset":  "MTD|QTD|YTD|LAST_7|LAST_14|LAST_30|LAST_MONTH — shorthand period used only when date_from is null",
+        "time_grain":   "null|AUTO|DAY|WEEK|MONTH|QUARTER — null means single aggregate, AUTO means infer grain from span",
+        "brand":        "brand name filter (LIKE match) or null",
+        "subbrand":     "subbrand filter (LIKE match) or null",
+        "store_name":   "store name filter (LIKE match) or null",
+        "store_format": "store format filter (LIKE match) or null",
+        "storecode":    "storecode exact match or null",
+        "channel":      "channel exact match (e.g. OFFLINE, ONLINE) or null",
+        "region":       "region exact match or null",
+        "state":        "state filter (LIKE match) or null",
+        "city":         "city filter (LIKE match) or null",
+        "category":     "category filter (LIKE match) or null",
+        "subclass":     "subclass filter (LIKE match) or null",
+        "group_by":     "comma-separated dimension column names or null — allowed: BRAND,SUBBRAND,STORE_NAME,STORE_FORMAT,STORECODE,CHANNEL,REGION,STATE,CITY,CATEGORY,SUBCLASS"
+      },
+      "time_grain_rules": {
+        "null":    "single aggregate or breakdown by dimensions only — no date column in output",
+        "AUTO":    "trend requested or date range provided without explicit grain",
+        "DAY":     "daily",
+        "WEEK":    "weekly",
+        "MONTH":   "monthly",
+        "QUARTER": "quarterly"
+      }
+    },
+    {
+      "kpi": "Sell Thru",
+      "aliases": ["sell thru", "sell-thru", "sell through", "sell thru %", "str", "str%"],
+      "procedure": "GetSellThruai",
+      "description": "Sell Thru % = SUM(NETAMT) / (SUM(SOH) + SUM(NETAMT)).",
+      "output_columns": ["<group_by dimension columns>", "<date period column when time_grain is set>", "SellThruPct"],
+      "parameters": {
+        "date_from":    "DATE string (YYYY-MM-DD) or null — explicit start date, takes precedence over date_preset",
+        "date_to":      "DATE string (YYYY-MM-DD) or null — explicit end date, defaults to today",
+        "date_preset":  "MTD|QTD|YTD|LAST_7|LAST_14|LAST_30|LAST_MONTH — shorthand period used only when date_from is null",
+        "time_grain":   "null|AUTO|DAY|WEEK|MONTH|QUARTER — null means single aggregate, AUTO means infer grain from span",
+        "brand":        "brand name filter (LIKE match) or null",
+        "subbrand":     "subbrand filter (LIKE match) or null",
+        "store_name":   "store name filter (LIKE match) or null",
+        "store_format": "store format filter (LIKE match) or null",
+        "storecode":    "storecode exact match or null",
+        "channel":      "channel exact match (e.g. OFFLINE, ONLINE) or null",
+        "region":       "region exact match or null",
+        "state":        "state filter (LIKE match) or null",
+        "city":         "city filter (LIKE match) or null",
+        "category":     "category filter (LIKE match) or null",
+        "subclass":     "subclass filter (LIKE match) or null",
+        "group_by":     "comma-separated dimension column names or null — allowed: BRAND,SUBBRAND,STORE_NAME,STORE_FORMAT,STORECODE,CHANNEL,REGION,STATE,CITY,CATEGORY,SUBCLASS"
+      },
+      "time_grain_rules": {
+        "null":    "single aggregate or breakdown by dimensions only — no date column in output",
+        "AUTO":    "trend requested or date range provided without explicit grain",
+        "DAY":     "daily",
+        "WEEK":    "weekly",
+        "MONTH":   "monthly",
+        "QUARTER": "quarterly"
       }
     }
   ],
