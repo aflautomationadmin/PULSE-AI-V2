@@ -58,13 +58,13 @@ def execute_stored_procedure(
     settings = get_settings()
     row_cap = max_rows or settings.max_result_rows
 
-    # Build parameterised EXEC: EXEC GetABVai @date_preset=?, @brand=?, ...
+    # Build parameterised EXEC: EXEC kpi.GetABVai @date_preset=?, @brand=?, ...
     if params:
         param_placeholders = ", ".join(f"@{k}=?" for k in params)
-        exec_sql = f"EXEC {procedure_name} {param_placeholders}"
+        exec_sql = f"EXEC kpi.{procedure_name} {param_placeholders}"
         param_values = list(params.values())
     else:
-        exec_sql = f"EXEC {procedure_name}"
+        exec_sql = f"EXEC kpi.{procedure_name}"
         param_values = []
 
     started = perf_counter()

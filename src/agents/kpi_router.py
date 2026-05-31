@@ -270,11 +270,11 @@ def route_to_kpi_procedure(
 def _build_exec_sql(procedure: str, params: dict[str, Any]) -> str:
     """Build a readable EXEC string for display / logging purposes."""
     if not params:
-        return f"EXEC {procedure}"
+        return f"EXEC kpi.{procedure}"
     parts = []
     for k, v in params.items():
         if isinstance(v, str):
             parts.append(f"@{k}='{v}'")
         else:
             parts.append(f"@{k}={v}")
-    return "EXEC " + procedure + " " + ", ".join(parts)
+    return "EXEC kpi." + procedure + " " + ", ".join(parts)
