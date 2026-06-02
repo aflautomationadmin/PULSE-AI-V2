@@ -84,7 +84,8 @@ def get_current_user(token: str = Depends(oauth2_scheme)) -> str:
         if not email:
             raise credentials_exception
         return email.lower().strip()
-    except JWTError:
+    except JWTError as exc:
+        print("[AUTH] JWT validation failed:", exc)
         raise credentials_exception
     except Exception:
         raise credentials_exception

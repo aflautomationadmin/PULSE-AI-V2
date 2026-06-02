@@ -17,7 +17,9 @@ export function useAuth() {
       ...loginRequest,
       account,
     });
-    // ID token: aud == clientId → easy backend validation
+    if (!resp.idToken) {
+      throw new Error("No ID token available");
+    }
     return resp.idToken;
   }
 

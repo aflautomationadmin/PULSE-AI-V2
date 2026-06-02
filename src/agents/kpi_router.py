@@ -62,6 +62,48 @@ STRICT NAME MATCH REQUIRED:
     ✗ NO MATCH — "top 5 stores last month"      ← no KPI name mentioned
     ✗ NO MATCH — "how is USPA performing YTD"   ← vague, no KPI name
 
+  Examples for ABS / GetABSai:
+    ✓ MATCH  — "what is the ABS this month"
+    ✓ MATCH  — "average basket sales by store"
+    ✓ MATCH  — "sales per bill trend last 30 days"
+    ✓ MATCH  — "basket sales MTD by brand"
+    ✗ NO MATCH — "net sales by brand MTD"       ← asks for net sales, not ABS
+    ✗ NO MATCH — "top stores by quantity"        ← no ABS alias mentioned
+    ✗ NO MATCH — "how many units did ARROW sell" ← unit count, not ABS
+
+  Examples for Discount Percent / GetDiscountPctai:
+    ✓ MATCH  — "discount percent by brand this month"
+    ✓ MATCH  — "what is the discount % for ARROW YTD"
+    ✓ MATCH  — "show discount rate trend weekly"
+    ✗ NO MATCH — "how much discount was given"  ← asks for discount amount, not rate
+    ✗ NO MATCH — "net sales after discount"      ← sales question, not discount %
+    ✗ NO MATCH — "top discounted products"       ← no discount % alias used
+
+  Examples for ASV / GetASVai:
+    ✓ MATCH  — "ASV by brand MTD"
+    ✓ MATCH  — "average sales value for USPA last month"
+    ✓ MATCH  — "sales value per qty trend this quarter"
+    ✗ NO MATCH — "net sales by brand"            ← total sales, not per-unit value
+    ✗ NO MATCH — "average selling price of shirts" ← product price, not ASV KPI
+    ✗ NO MATCH — "revenue per store"              ← no ASV alias used
+
+  Examples for SSPD / GetSSPDAi:
+    ✓ MATCH  — "SSPD for FM this month"
+    ✓ MATCH  — "sales per square foot per day by state"
+    ✓ MATCH  — "sales per sqft per day trend last 30 days"
+    ✗ NO MATCH — "store-wise sales last month"   ← store sales, not SSPD
+    ✗ NO MATCH — "sales efficiency by store"     ← vague, no SSPD alias
+    ✗ NO MATCH — "how productive are our stores" ← no SSPD alias mentioned
+
+  Examples for Sell Thru / GetSellThruai:
+    ✓ MATCH  — "sell thru % by brand MTD"
+    ✓ MATCH  — "what is the STR for ARROW this quarter"
+    ✓ MATCH  — "sell through trend last 30 days"
+    ✓ MATCH  — "sell-thru by category YTD"
+    ✗ NO MATCH — "how much stock is remaining"   ← inventory, not sell thru
+    ✗ NO MATCH — "units sold vs target"          ← target achievement, not STR
+    ✗ NO MATCH — "sales performance this month"  ← vague, no sell thru alias
+
   When in doubt, return {{"matched": false}} and let the SQL writer handle it.
 
 ═══ PARAMETER EXTRACTION RULES ══════════════════════════════════════════════

@@ -16,7 +16,9 @@ api.interceptors.request.use(async (config) => {
   if (_getToken) {
     try {
       const token = await _getToken();
-      config.headers.Authorization = `Bearer ${token}`;
+      if (token) {
+        config.headers.Authorization = `Bearer ${token}`;
+      }
     } catch {
       // token acquisition failed — request will proceed without auth header
       // and the backend will return 401, which the UI can handle
@@ -31,8 +33,14 @@ async function _authHeaders(): Promise<HeadersInit> {
   if (_getToken) {
     try {
       const token = await _getToken();
-      (headers as Record<string, string>)['Authorization'] = `Bearer ${token}`;
-    } catch { /* proceed without */ }
+      if (token) {
+        (headers as Record<string, string>)['Authorization'] = `Bearer ${token}`;
+      } else {
+        console.warn('[SSE auth] no token available for /chat/stream');
+      }
+    } catch (err) {
+      console.warn('[SSE auth] failed to acquire token for /chat/stream', err);
+    }
   }
   return headers;
 }

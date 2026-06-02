@@ -34,6 +34,27 @@
   --font: 'Inter', system-ui, 'Segoe UI', sans-serif;
 }
 
+/* Dark mode */
+html.dark-mode {
+  --page-bg: #0f172a;
+  --page-gradient: radial-gradient(ellipse 80% 60% at 50% 0%, rgba(220, 38, 38, 0.10) 0%, transparent 70%),
+                   radial-gradient(ellipse 60% 50% at 100% 100%, rgba(220, 38, 38, 0.05) 0%, transparent 70%);
+  --panel-bg: rgba(15, 23, 42, 0.85);
+  --panel-border: rgba(255, 255, 255, 0.08);
+  --sidebar-bg: rgba(15, 23, 42, 0.90);
+  --sidebar-border: rgba(255, 255, 255, 0.08);
+  --assistant-bubble: rgba(30, 41, 59, 0.90);
+  --assistant-border: rgba(220, 38, 38, 0.20);
+  --user-bubble: rgba(220, 38, 38, 0.12);
+  --user-border: rgba(220, 38, 38, 0.25);
+  --text-color: #e2e8f0;
+  --text-secondary: rgba(148, 163, 184, 0.85);
+  --text-muted: rgba(148, 163, 184, 0.60);
+  --input-bg: rgba(30, 41, 59, 0.95);
+  --input-border: rgba(148, 163, 184, 0.25);
+  --scroll-thumb: rgba(148, 163, 184, 0.35);
+}
+
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 html, body, #root {
@@ -332,6 +353,18 @@ html, body, #root {
   display: block;
 }
 
+.chat-summary {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--text-muted);
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 300px;
+  margin-top: 2px;
+}
+
 .chat-header-right {
   margin-left: auto;
   display: flex;
@@ -352,6 +385,47 @@ html, body, #root {
 }
 
 .thread-badge:hover { background: rgba(220,38,38,0.12); }
+
+.thread-info-badge {
+  font-size: 11px;
+  color: var(--text-muted);
+  background: rgba(220,38,38,0.06);
+  border: 1px solid rgba(220,38,38,0.12);
+  padding: 4px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.13s, border-color 0.13s;
+  user-select: none;
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.thread-info-badge:hover {
+  background: rgba(220,38,38,0.12);
+  border-color: rgba(220,38,38,0.25);
+}
+
+.theme-toggle {
+  background: transparent;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  border-radius: 6px;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 16px;
+  transition: all 0.2s ease;
+  color: var(--text-color);
+}
+
+.theme-toggle:hover {
+  border-color: rgba(148, 163, 184, 0.45);
+  background: var(--accent-light);
+}
 
 /* ── Messages ─────────────────────────────────────── */
 .chatbot-messages {
@@ -607,7 +681,7 @@ html, body, #root {
   border-radius: var(--radius-sm);
   overflow: hidden;
   border: 1px solid var(--panel-border);
-  background: rgba(255,255,255,0.7);
+  background: var(--panel-bg);
   backdrop-filter: blur(8px);
 }
 
@@ -628,6 +702,8 @@ html, body, #root {
 details[open] .info-panel summary .chevron { transform: rotate(90deg); }
 .info-panel summary:hover { background: rgba(220,38,38,0.04); }
 
+html.dark-mode .info-panel summary:hover { background: rgba(220,38,38,0.10); }
+
 .info-panel-body { padding: 4px 12px 10px; }
 
 /* SQL explanation */
@@ -643,6 +719,42 @@ details[open] .info-panel summary .chevron { transform: rotate(90deg); }
   font-size: 12.5px;
   color: var(--text-secondary);
   line-height: 1.5;
+}
+
+html.dark-mode .sql-explain {
+  background: rgba(220,38,38,0.10);
+  border-color: rgba(220,38,38,0.25);
+}
+
+html.dark-mode .info-panel {
+  border-color: rgba(255,255,255,0.10);
+}
+
+html.dark-mode .info-panel summary {
+  color: rgba(226,232,240,0.92);
+}
+
+html.dark-mode .info-panel-body {
+  color: rgba(226,232,240,0.92);
+}
+
+html.dark-mode .data-table th {
+  background: rgba(255,255,255,0.06);
+  color: rgba(226,232,240,0.9);
+  border-color: rgba(255,255,255,0.10);
+}
+
+html.dark-mode .data-table td {
+  color: rgba(226,232,240,0.88);
+  border-color: rgba(255,255,255,0.08);
+}
+
+html.dark-mode .data-table tr:nth-child(even) td {
+  background: rgba(255,255,255,0.03);
+}
+
+html.dark-mode .info-panel {
+  background: rgba(15,23,42,0.72);
 }
 
 .sql-explain .tag {
@@ -850,6 +962,26 @@ details[open] .info-panel summary .chevron { transform: rotate(90deg); }
   font-size: 12px;
   color: var(--text-muted);
   white-space: nowrap;
+}
+
+.theme-toggle {
+  background: transparent;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  border-radius: 6px;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 16px;
+  transition: all 0.2s ease;
+  color: var(--text-color);
+}
+
+.theme-toggle:hover {
+  border-color: rgba(148, 163, 184, 0.45);
+  background: var(--accent-light);
 }
 
 /* ── Input bar ─────────────────────────────────────── */

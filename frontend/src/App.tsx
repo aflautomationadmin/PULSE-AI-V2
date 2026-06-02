@@ -12,14 +12,18 @@ import { streamMessage, listThreads, getThreadMessages, setTokenGetter } from '.
 import type { Thread } from './api/types';
 import './styles/chatbot.css';
 
-// Progress messages shown while bot is thinking
-const PROGRESS_NOTES = [
-  'Understanding your request…',
-  'Checking the data…',
-  'Gathering the latest figures…',
-  'Running the analysis…',
-  'Almost there…',
-];
+// Progress messages shown while bot is thinking - different stages
+const PROGRESS_STAGES = {
+  understanding: '🧠 Understanding your request…',
+  classifying: '📊 Classifying question type…',
+  writing: '✍️ Writing query…',
+  searching: '🔍 Searching database…',
+  analyzing: '📈 Analyzing results…',
+  thinking: '💭 Thinking…',
+};
+
+// Cycle through all stages
+const PROGRESS_NOTES = Object.values(PROGRESS_STAGES);
 
 const SAMPLE_QUESTIONS = [
   'Top 5 brands by net sales last month',
@@ -39,6 +43,7 @@ function ChatApp() {
   const [threads, setThreads] = useState<Thread[]>([]);
   const [activeThread, setActiveThread] = useState('');
   const [toast, setToast] = useState<string | null>(null);
+  const [darkMode, setDarkMode] = useState(() => localStorage.getItem('theme') === 'dark');
   const bottomRef = useRef<HTMLDivElement>(null);
   const progressTimer = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -46,6 +51,17 @@ function ChatApp() {
   useEffect(() => {
     setTokenGetter(getToken);
   }, [getToken]);
+
+  // Apply dark mode class to document
+  useEffect(() => {
+    if (darkMode) {
+      document.documentElement.classList.add('dark-mode');
+      localStorage.setItem('theme', 'dark');
+    } else {
+      document.documentElement.classList.remove('dark-mode');
+      localStorage.setItem('theme', 'light');
+    }
+  }, [darkMode]);
 
   const refreshThreads = useCallback(async (loadMessages = false) => {
     try {
@@ -208,6 +224,11 @@ function ChatApp() {
 
   function handleChipClick(q: string) { handleSend(q); }
 
+  // Generate a brief chat summary from first user message
+  const chatSummary = messages.length > 0 && messages[0].role === 'user'
+    ? messages[0].text.substring(0, 50) + (messages[0].text.length > 50 ? '…' : '')
+    : null;
+
   const showWelcome = messages.length === 0 && !loading;
 
   return (
@@ -225,18 +246,29 @@ function ChatApp() {
           <img src="/LOgo.png" alt="Arvind Fashions" className="chat-header-logo" />
           <div className="chat-header-title">
             Pulse AI
-            <span>Retail Analytics Assistant · Arvind Fashions</span>
+            {chatSummary && <span className="chat-summary" title={chatSummary}>{chatSummary}</span>}
+            {!chatSummary && <span>Retail Analytics Assistant · Arvind Fashions</span>}
           </div>
           <div className="chat-header-right">
+            {/* Thread badge */}
             {activeThread && (
               <span
-                className="thread-badge"
-                title="Current thread"
+                className="thread-info-badge"
+                title={`Current thread: ${activeThread}`}
                 onClick={() => { navigator.clipboard?.writeText(activeThread); setToast('Thread ID copied!'); }}
               >
-                {activeThread}
+                {activeThread.substring(0, 20)}…
               </span>
             )}
+            {/* Dark mode toggle */}
+            <button
+              className="theme-toggle"
+              onClick={() => setDarkMode(v => !v)}
+              title={darkMode ? 'Light mode' : 'Dark mode'}
+              aria-label="Toggle theme"
+            >
+              {darkMode ? '☀️' : '🌙'}
+            </button>
             {/* User info + sign-out */}
             <div className="user-chip" title={email}>
               <span className="user-avatar">{(name || email).charAt(0).toUpperCase()}</span>
