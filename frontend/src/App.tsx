@@ -112,7 +112,7 @@ function ChatApp() {
     try {
       let fullText = '';
 
-      for await (const event of streamMessage(text)) {
+      for await (const event of streamMessage(text, activeThread || undefined)) {
         if (event.type === 'start') {
           stopProgress();
 
@@ -211,7 +211,7 @@ function ChatApp() {
         last_entity_match: null,
         last_resolver_explanation: (m.last_resolver_explanation as string) ?? null,
         cache_status: null,
-        trace_id: null,   // not persisted in memory turns
+        trace_id: (m.trace_id as string) ?? null,
       };
       return { id: uuid(), role: 'bot' as const, text: String(m.text ?? ''), response, timestamp: new Date() };
     });
@@ -299,7 +299,7 @@ function ChatApp() {
           )}
 
           {messages.map(msg => (
-            <Message key={msg.id} message={msg} />
+            <Message key={msg.id} message={msg} threadId={activeThread || undefined} />
           ))}
 
           {loading && progressNote && (

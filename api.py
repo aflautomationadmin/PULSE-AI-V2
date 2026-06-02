@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import threading
 from contextlib import asynccontextmanager
 from dataclasses import asdict
@@ -16,6 +17,8 @@ from src.auth import get_current_user
 from src.business_context import format_context_for_prompt
 from src.orchestrator import ChatOrchestrator
 from src.tracing import get_langfuse
+
+logger = logging.getLogger(__name__)
 
 
 # ── Per-user orchestrator registry ────────────────────────────────────────────
@@ -55,6 +58,7 @@ app.add_middleware(
 
 class ChatRequest(BaseModel):
     message: str
+    thread_id: str | None = None
 
 
 class ThreadCreateRequest(BaseModel):
@@ -62,9 +66,10 @@ class ThreadCreateRequest(BaseModel):
 
 
 class FeedbackRequest(BaseModel):
-    trace_id: str
+    trace_id: str | None = None
     score: int          # 1 = 👍  0 = 👎
     comment: str | None = None
+    thread_id: str | None = None
 
 
 # ── Chat (non-streaming) ───────────────────────────────────────────────────────
@@ -75,6 +80,11 @@ def chat(
     user_email: str = Depends(get_current_user),
 ) -> dict[str, Any]:
     orch = _get_orchestrator(user_email)
+    if req.thread_id:
+        try:
+            orch.switch_thread(req.thread_id)
+        except ValueError as exc:
+            raise HTTPException(status_code=404, detail=str(exc))
     try:
         reply = orch.handle_user_message(req.message)
     except Exception as exc:
@@ -95,10 +105,25 @@ def chat_stream(
     user_email: str = Depends(get_current_user),
 ) -> StreamingResponse:
     orch = _get_orchestrator(user_email)
+    if req.thread_id:
+        try:
+            orch.switch_thread(req.thread_id)
+        except ValueError as exc:
+            raise HTTPException(status_code=404, detail=str(exc))
 
     def event_generator():
         try:
             for event in orch.stream_handle_user_message(req.message):
+                trace_id = event.get("trace_id") or orch.last_trace_id
+                if trace_id and event.get("type") in {"complete", "metadata", "error"}:
+                    event["trace_id"] = trace_id
+                    logger.info(
+                        "Chat stream event includes trace_id=%s type=%s thread_id=%s user=%s",
+                        trace_id,
+                        event.get("type"),
+                        orch.active_thread(),
+                        user_email,
+                    )
                 yield f"data: {json.dumps(event, default=str)}\n\n"
         except Exception as exc:
             yield f"data: {json.dumps({'type': 'error', 'content': str(exc)})}\n\n"
@@ -213,16 +238,39 @@ def submit_feedback(
     user_email: str = Depends(get_current_user),
 ) -> dict[str, Any]:
     lf = get_langfuse()
-    if not req.trace_id:
+    trace_id = req.trace_id
+    if not trace_id:
+        orch = _get_orchestrator(user_email)
+        thread_id = req.thread_id or orch.active_thread()
+        trace_id = orch.last_trace_id
+        for message in reversed(orch.get_thread_messages(thread_id)):
+            candidate = message.get("trace_id")
+            if message.get("role") == "bot" and isinstance(candidate, str) and candidate:
+                trace_id = candidate
+                break
+        logger.warning(
+            "Feedback request missing trace_id; fallback trace_id=%s thread_id=%s user=%s",
+            trace_id,
+            thread_id,
+            user_email,
+        )
+    if not trace_id:
         raise HTTPException(status_code=400, detail="Missing trace_id for feedback")
     if not lf:
         raise HTTPException(status_code=503, detail="Langfuse is not configured")
 
     try:
-        score_id = str(uuid5(NAMESPACE_URL, f"{req.trace_id}:user-feedback"))
+        score_id = str(uuid5(NAMESPACE_URL, f"{trace_id}:user-feedback"))
+        logger.info(
+            "Submitting Langfuse feedback score trace_id=%s score=%s user=%s comment_present=%s",
+            trace_id,
+            req.score,
+            user_email,
+            bool(req.comment),
+        )
         lf.score(
             id=score_id,
-            trace_id=req.trace_id,
+            trace_id=trace_id,
             name="user-feedback",
             value=req.score,
             comment=req.comment,
@@ -230,9 +278,11 @@ def submit_feedback(
         )
         lf.flush()
     except Exception as exc:
+        logger.exception("Langfuse feedback write failed trace_id=%s", trace_id)
         raise HTTPException(status_code=502, detail=f"Langfuse feedback write failed: {exc}")
 
-    return {"ok": True, "trace_id": req.trace_id, "score_id": score_id}
+    logger.info("Langfuse feedback score submitted score_id=%s trace_id=%s", score_id, trace_id)
+    return {"ok": True, "trace_id": trace_id, "score_id": score_id}
 
 
 # ── Health (public — no auth required) ────────────────────────────────────────

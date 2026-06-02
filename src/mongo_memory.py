@@ -114,6 +114,7 @@ class MongoConversationMemory:
         chart_data: dict[str, Any] | None = None,
         chart_type: str | None = None,
         row_preview: list[dict[str, Any]] | None = None,
+        trace_id: str | None = None,
     ) -> None:
         self._current_turns().append(
             MemoryTurn(
@@ -127,6 +128,7 @@ class MongoConversationMemory:
                 chart_data=chart_data,
                 chart_type=chart_type,
                 row_preview=row_preview,
+                trace_id=trace_id,
             )
         )
         self._save_thread(self._active_thread_id)
@@ -159,14 +161,13 @@ class MongoConversationMemory:
         return None
 
     def list_threads(self) -> list[ThreadSummary]:
-        ordered_ids = [self._active_thread_id] + sorted(
-            tid for tid in self._threads if tid != self._active_thread_id
-        )
+        ordered_ids = sorted(self._threads, reverse=True)
         return [
             ThreadSummary(
                 thread_id=tid,
                 turn_count=len(self._threads[tid]),
                 is_active=(tid == self._active_thread_id),
+                title=self._thread_title(tid),
             )
             for tid in ordered_ids
         ]
@@ -224,6 +225,14 @@ class MongoConversationMemory:
         if thread_id not in self._threads:
             self._threads[thread_id] = deque(maxlen=self._max_turns)
 
+    def _thread_title(self, thread_id: str) -> str:
+        turns = self._threads.get(thread_id)
+        if turns:
+            first_question = next((turn.user.strip() for turn in turns if turn.user.strip()), "")
+            if first_question:
+                return first_question[:57] + "..." if len(first_question) > 60 else first_question
+        return "Default conversation" if thread_id == "default" else "New conversation"
+
     def _normalize_thread_id(self, thread_id: str) -> str:
         normalized = thread_id.strip()
         if not _VALID_THREAD_ID.fullmatch(normalized):
@@ -260,6 +269,7 @@ class MongoConversationMemory:
                         chart_data=t.get("chart_data"),
                         chart_type=t.get("chart_type"),
                         row_preview=t.get("row_preview"),
+                        trace_id=t.get("trace_id"),
                     ))
                 self._threads[thread_id] = q
         except Exception:
@@ -282,6 +292,7 @@ class MongoConversationMemory:
                 "chart_data":      t.chart_data,
                 "chart_type":      t.chart_type,
                 "row_preview":     t.row_preview,
+                "trace_id":        t.trace_id,
                 "created_at":      now,
             }
             for t in turns

@@ -46,8 +46,8 @@ async function _authHeaders(): Promise<HeadersInit> {
 }
 
 // ── Chat (non-streaming) ──────────────────────────────────────────────────────
-export async function sendMessage(message: string): Promise<ChatResponse> {
-  const { data } = await api.post<ChatResponse>('/chat', { message });
+export async function sendMessage(message: string, thread_id?: string): Promise<ChatResponse> {
+  const { data } = await api.post<ChatResponse>('/chat', { message, thread_id });
   return data;
 }
 
@@ -67,13 +67,16 @@ export type StreamEvent =
       trace_id?: string; }
   | { type: 'error';    content: string };
 
-export async function* streamMessage(message: string): AsyncGenerator<StreamEvent> {
+export async function* streamMessage(
+  message: string,
+  thread_id?: string,
+): AsyncGenerator<StreamEvent> {
   const headers = await _authHeaders();
 
   const response = await fetch('/chat/stream', {
     method: 'POST',
     headers,
-    body: JSON.stringify({ message }),
+    body: JSON.stringify({ message, thread_id }),
   });
 
   if (!response.ok || !response.body) {
@@ -143,10 +146,22 @@ export async function clearSqlCache(): Promise<{ cleared: number }> {
 }
 
 export async function submitFeedback(
-  trace_id: string,
+  trace_id: string | null | undefined,
   score: 1 | 0,
   comment?: string,
+  thread_id?: string,
 ): Promise<{ ok: boolean; trace_id: string; score_id: string }> {
-  const { data } = await api.post('/feedback', { trace_id, score, comment });
-  return data;
+  try {
+    const { data } = await api.post('/feedback', { trace_id, score, comment, thread_id });
+    return data;
+  } catch (error) {
+    if (axios.isAxiosError(error)) {
+      const detail = error.response?.data?.detail;
+      const message = typeof detail === 'string'
+        ? detail
+        : `Feedback request failed: ${error.response?.status ?? 'network error'}`;
+      throw new Error(message);
+    }
+    throw error;
+  }
 }

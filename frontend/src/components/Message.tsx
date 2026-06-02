@@ -16,11 +16,12 @@ export interface MessageItem {
 
 interface Props {
   message: MessageItem;
+  threadId?: string;
 }
 
 type Feedback = 'up' | 'down' | null;
 
-export function Message({ message }: Props) {
+export function Message({ message, threadId }: Props) {
   const [feedback, setFeedback] = useState<Feedback>(null);
   const [feedbackSent, setFeedbackSent] = useState(false);
   const [feedbackComment, setFeedbackComment] = useState('');
@@ -34,37 +35,30 @@ export function Message({ message }: Props) {
     setFeedback(val);
     setFeedbackError(null);
     const traceId = message.response?.trace_id;
-    if (!traceId) {
-      setFeedbackError('Feedback is unavailable for this response.');
-      return;
-    }
     try {
-      await submitFeedback(traceId, val === 'up' ? 1 : 0);
+      await submitFeedback(traceId, val === 'up' ? 1 : 0, undefined, threadId);
       setFeedbackSent(true);
       setCommentOpen(true);
-    } catch {
-      setFeedbackError('Could not save feedback.');
+    } catch (error) {
+      setFeedbackError(error instanceof Error ? error.message : 'Could not save feedback.');
     }
   }
 
   async function handleFeedbackComment() {
     if (!feedback || commentSent) return;
     const traceId = message.response?.trace_id;
-    if (!traceId) {
-      setFeedbackError('Feedback is unavailable for this response.');
-      return;
-    }
     try {
       await submitFeedback(
         traceId,
         feedback === 'up' ? 1 : 0,
         feedbackComment.trim() || undefined,
+        threadId,
       );
       setCommentSent(true);
       setCommentOpen(false);
       setFeedbackError(null);
-    } catch {
-      setFeedbackError('Could not save comment.');
+    } catch (error) {
+      setFeedbackError(error instanceof Error ? error.message : 'Could not save comment.');
     }
   }
 
