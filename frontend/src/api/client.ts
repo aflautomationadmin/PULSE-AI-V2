@@ -1,5 +1,7 @@
 import axios from 'axios';
-import type { ChatResponse, ThreadsResponse, SqlCacheEntry } from './types';
+import type {
+  ChatResponse, ThreadsResponse, SqlCacheEntry, AdminUser, AdminThread,
+} from './types';
 
 const api = axios.create({ baseURL: '' });
 
@@ -143,6 +145,22 @@ export async function getSqlCacheEntries(limit = 10): Promise<SqlCacheEntry[]> {
 export async function clearSqlCache(): Promise<{ cleared: number }> {
   const { data } = await api.delete('/cache/sql');
   return data;
+}
+
+// ── Admin portal ───────────────────────────────────────────────────────────────
+export async function getAdminStatus(): Promise<{ is_admin: boolean; email: string }> {
+  const { data } = await api.get('/admin/me');
+  return data;
+}
+
+export async function getAdminUsers(): Promise<AdminUser[]> {
+  const { data } = await api.get('/admin/users');
+  return data.users;
+}
+
+export async function getAdminConversations(userId: string): Promise<AdminThread[]> {
+  const { data } = await api.get(`/admin/users/${encodeURIComponent(userId)}/conversations`);
+  return data.threads;
 }
 
 export async function submitFeedback(

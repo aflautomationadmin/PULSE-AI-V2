@@ -47,6 +47,8 @@ class Settings:
     # Azure AD — required for JWT validation when auth is enabled
     azure_tenant_id: str = ""   # AZURE_TENANT_ID
     azure_client_id: str = ""   # AZURE_CLIENT_ID
+    # Admin portal — emails allowed to view all users' conversations
+    admin_emails: tuple[str, ...] = ()   # ADMIN_EMAILS (comma-separated)
     # Langfuse observability (optional — silently disabled when keys are absent)
     langfuse_public_key: str = ""   # LANGFUSE_PUBLIC_KEY
     langfuse_secret_key: str = ""   # LANGFUSE_SECRET_KEY
@@ -83,6 +85,14 @@ def _bool_env(name: str, default: bool) -> bool:
     if raw is None or raw.strip() == "":
         return default
     return raw.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _csv_email_env(name: str, default: tuple[str, ...]) -> tuple[str, ...]:
+    """Parse a comma-separated list of emails into a lowercase tuple."""
+    raw = os.getenv(name)
+    if raw is None or raw.strip() == "":
+        return default
+    return tuple(e.strip().lower() for e in raw.split(",") if e.strip())
 
 
 def _float_env(name: str, default: float) -> float:
@@ -125,6 +135,10 @@ def get_settings() -> Settings:
         mongo_user_id=os.getenv("MONGO_USER_ID", "anonymous"),
         azure_tenant_id=os.getenv("AZURE_TENANT_ID", "").strip(),
         azure_client_id=os.getenv("AZURE_CLIENT_ID", "").strip(),
+        admin_emails=_csv_email_env(
+            "ADMIN_EMAILS",
+            ("mohit.lokhande@arvindfashions.com", "radhakishan.thakur@arvindfashions.com"),
+        ),
         langfuse_public_key=os.getenv("LANGFUSE_PUBLIC_KEY", "").strip(),
         langfuse_secret_key=os.getenv("LANGFUSE_SECRET_KEY", "").strip(),
         langfuse_host=os.getenv("LANGFUSE_HOST", "https://cloud.langfuse.com").strip(),

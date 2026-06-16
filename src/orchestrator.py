@@ -56,17 +56,32 @@ class ChatOrchestrator:
         effective_user_id = (user_id or self.settings.mongo_user_id).strip() or "anonymous"
         self._user_id = effective_user_id
         # ── Memory backend: MongoDB if MONGO_URI is set, else local JSON ──
+        # If MONGO_URI is set but the server is unreachable, fall back to local
+        # JSON memory so chat keeps working (a Mongo outage must not 500 every
+        # request). Note: the admin portal still needs Mongo to show data.
+        self.memory = None  # type: ignore[assignment]
         if self.settings.mongo_uri:
-            self.memory = MongoConversationMemory(
-                uri=self.settings.mongo_uri,
-                db_name=self.settings.mongo_db_name,
-                collection=self.settings.mongo_collection,
-                max_turns=self.settings.memory_max_turns,
-                default_thread_id=self.settings.memory_default_thread,
-                auto_create_thread=self.settings.memory_auto_create_thread,
-                user_id=effective_user_id,
-            )
-        else:
+            try:
+                self.memory = MongoConversationMemory(
+                    uri=self.settings.mongo_uri,
+                    db_name=self.settings.mongo_db_name,
+                    collection=self.settings.mongo_collection,
+                    max_turns=self.settings.memory_max_turns,
+                    default_thread_id=self.settings.memory_default_thread,
+                    auto_create_thread=self.settings.memory_auto_create_thread,
+                    user_id=effective_user_id,
+                )
+            except Exception as exc:
+                import logging
+                logging.getLogger(__name__).warning(
+                    "MongoDB unreachable (%s) — falling back to local JSON memory. "
+                    "Conversations will not persist and the admin portal will be empty "
+                    "until MongoDB is running.",
+                    exc,
+                )
+                self.memory = None  # type: ignore[assignment]
+
+        if self.memory is None:
             self.memory = ConversationMemory(
                 max_turns=self.settings.memory_max_turns,
                 store_path=self.settings.memory_store_path,

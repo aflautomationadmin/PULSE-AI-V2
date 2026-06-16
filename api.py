@@ -13,7 +13,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
-from src.auth import get_current_user
+from src.admin_store import get_user_conversations, list_users
+from src.auth import get_current_user, is_admin, require_admin
 from src.business_context import format_context_for_prompt
 from src.orchestrator import ChatOrchestrator
 from src.tracing import get_langfuse
@@ -283,6 +284,29 @@ def submit_feedback(
 
     logger.info("Langfuse feedback score submitted score_id=%s trace_id=%s", score_id, trace_id)
     return {"ok": True, "trace_id": trace_id, "score_id": score_id}
+
+
+# ── Admin portal ───────────────────────────────────────────────────────────────
+
+@app.get("/admin/me")
+def admin_me(user_email: str = Depends(get_current_user)) -> dict[str, Any]:
+    """Lightweight check so the frontend can show/hide the Admin button."""
+    return {"is_admin": is_admin(user_email), "email": user_email}
+
+
+@app.get("/admin/users")
+def admin_users(_admin: str = Depends(require_admin)) -> dict[str, Any]:
+    """List every user who has chatted, with activity stats (admin only)."""
+    return {"users": list_users()}
+
+
+@app.get("/admin/users/{user_id}/conversations")
+def admin_user_conversations(
+    user_id: str,
+    _admin: str = Depends(require_admin),
+) -> dict[str, Any]:
+    """Return all threads + turns for one user (admin only)."""
+    return {"user_id": user_id, "threads": get_user_conversations(user_id)}
 
 
 # ── Health (public — no auth required) ────────────────────────────────────────

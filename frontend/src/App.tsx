@@ -4,11 +4,12 @@ import { MsalProvider, AuthenticatedTemplate, UnauthenticatedTemplate } from '@a
 import { msalInstance } from './auth/msalConfig';
 import { useAuth } from './auth/useAuth';
 import LoginPage from './pages/LoginPage';
+import AdminPage from './pages/AdminPage';
 import { Sidebar } from './components/Sidebar';
 import { Message, type MessageItem } from './components/Message';
 import { ChatInput } from './components/ChatInput';
 import { Toast } from './components/Toast';
-import { streamMessage, listThreads, getThreadMessages, setTokenGetter } from './api/client';
+import { streamMessage, listThreads, getThreadMessages, setTokenGetter, getAdminStatus } from './api/client';
 import type { Thread } from './api/types';
 import './styles/chatbot.css';
 
@@ -44,6 +45,8 @@ function ChatApp() {
   const [activeThread, setActiveThread] = useState('');
   const [toast, setToast] = useState<string | null>(null);
   const [darkMode, setDarkMode] = useState(() => localStorage.getItem('theme') === 'dark');
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [showAdmin, setShowAdmin] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const progressTimer = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -51,6 +54,13 @@ function ChatApp() {
   useEffect(() => {
     setTokenGetter(getToken);
   }, [getToken]);
+
+  // Detect whether the signed-in user is an admin (controls the Admin button)
+  useEffect(() => {
+    getAdminStatus()
+      .then(res => setIsAdmin(res.is_admin))
+      .catch(() => setIsAdmin(false));
+  }, []);
 
   // Apply dark mode class to document
   useEffect(() => {
@@ -250,6 +260,16 @@ function ChatApp() {
             {!chatSummary && <span>Retail Analytics Assistant · Arvind Fashions</span>}
           </div>
           <div className="chat-header-right">
+            {/* Admin portal (only visible to admins) */}
+            {isAdmin && (
+              <button
+                className="admin-open-btn"
+                onClick={() => setShowAdmin(true)}
+                title="Open admin portal"
+              >
+                🛡️ Admin
+              </button>
+            )}
             {/* Thread badge */}
             {activeThread && (
               <span
@@ -323,6 +343,8 @@ function ChatApp() {
       </main>
 
       <Toast message={toast} onDismiss={() => setToast(null)} />
+
+      {isAdmin && showAdmin && <AdminPage onClose={() => setShowAdmin(false)} />}
     </div>
   );
 }

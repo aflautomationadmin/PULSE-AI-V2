@@ -89,3 +89,21 @@ def get_current_user(token: str = Depends(oauth2_scheme)) -> str:
         raise credentials_exception
     except Exception:
         raise credentials_exception
+
+
+def is_admin(email: str) -> bool:
+    """True if the given email is in the configured admin allow-list."""
+    return email.lower().strip() in get_settings().admin_emails
+
+
+def require_admin(user_email: str = Depends(get_current_user)) -> str:
+    """
+    FastAPI dependency — allows the request through only if the authenticated
+    user is in ADMIN_EMAILS. Raises HTTP 403 otherwise.
+    """
+    if not is_admin(user_email):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin access required",
+        )
+    return user_email

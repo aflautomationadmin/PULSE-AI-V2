@@ -8,6 +8,7 @@ export default defineConfig({
     port: 5173,
     proxy: {
       '/chat': 'http://localhost:8000',
+      '/admin': 'http://localhost:8000',
       '/threads': 'http://localhost:8000',
       '/schema': 'http://localhost:8000',
       '/memory': 'http://localhost:8000',

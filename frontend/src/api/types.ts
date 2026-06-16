@@ -68,3 +68,28 @@ export interface SqlCacheEntry {
   created_at: string;
   last_success_at: string;
 }
+
+// ── Admin portal ───────────────────────────────────────────────────────────────
+export interface AdminUser {
+  user_id: string;
+  thread_count: number;
+  turn_count: number;
+  last_activity: string | null;
+}
+
+export interface AdminTurn {
+  user: string;
+  assistant: string;
+  route: string;
+  sql_used: string | null;
+  sql_explanation: string | null;
+  created_at: string | null;
+}
+
+export interface AdminThread {
+  thread_id: string;
+  created_at: string | null;
+  updated_at: string | null;
+  turn_count: number;
+  turns: AdminTurn[];
+}
