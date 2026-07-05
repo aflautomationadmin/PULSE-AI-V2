@@ -19,6 +19,54 @@ from src.tracing import current_trace_id, current_user_id
 litellm.success_callback = ["langfuse"]
 
 
+def _usage_field(usage: Any, name: str) -> int:
+    """Read a token count from a usage object/dict, defaulting to 0."""
+    val = getattr(usage, name, None)
+    if val is None and isinstance(usage, dict):
+        val = usage.get(name)
+    try:
+        return int(val or 0)
+    except (TypeError, ValueError):
+        return 0
+
+
+def _record_usage(agent_name: str, model: str, response: Any) -> None:
+    """
+    Extract token usage from a (non-streaming) LLM response and accumulate it
+    under the agent name. Never raises — token accounting must not break a chat.
+    """
+    try:
+        from src.tracing import record_token_usage
+
+        usage = getattr(response, "usage", None)
+        if usage is None and isinstance(response, dict):
+            usage = response.get("usage")
+        if usage is None:
+            return
+        pt = _usage_field(usage, "prompt_tokens")
+        ct = _usage_field(usage, "completion_tokens")
+        tt = _usage_field(usage, "total_tokens") or (pt + ct)
+        record_token_usage(agent_name, pt, ct, tt, _calc_cost(model, pt, ct))
+    except Exception:
+        pass
+
+
+def _calc_cost(model: str, prompt_tokens: int, completion_tokens: int) -> float:
+    """Best-effort USD cost for a call using LiteLLM's local cost map."""
+    try:
+        cost = litellm.cost_per_token(
+            model=model,
+            prompt_tokens=int(prompt_tokens or 0),
+            completion_tokens=int(completion_tokens or 0),
+        )
+        # cost_per_token returns (prompt_cost, completion_cost)
+        if isinstance(cost, (tuple, list)) and len(cost) == 2:
+            return float(cost[0]) + float(cost[1])
+        return float(cost or 0.0)
+    except Exception:
+        return 0.0
+
+
 def _lf_meta(generation_name: str) -> dict:
     """Build the metadata dict that links a LiteLLM call to the current trace."""
     meta: dict = {"generation_name": generation_name}
@@ -194,6 +242,7 @@ def run_text_agent(
     except Exception as exc:
         _raise_runtime_error(exc)
 
+    _record_usage(agent_name or "completion", selected_model, result)
     return _extract_text_content(result)
 
 
@@ -221,18 +270,34 @@ def stream_text_agent(
             temperature=0,
             timeout=float(max(1, settings.llm_timeout_seconds)),
             stream=True,
+            stream_options={"include_usage": True},
             metadata=_lf_meta(agent_name or "stream"),
         )
     except Exception as exc:
         _raise_runtime_error(exc)
 
+    final_usage: Any = None
     for chunk in response:
+        # The final chunk (with include_usage) carries the usage totals.
+        chunk_usage = getattr(chunk, "usage", None)
+        if chunk_usage is not None:
+            final_usage = chunk_usage
         try:
             delta = chunk.choices[0].delta.content
             if delta:
                 yield delta
         except (AttributeError, IndexError):
             continue
+
+    if final_usage is not None:
+        pt = _usage_field(final_usage, "prompt_tokens")
+        ct = _usage_field(final_usage, "completion_tokens")
+        tt = _usage_field(final_usage, "total_tokens") or (pt + ct)
+        try:
+            from src.tracing import record_token_usage
+            record_token_usage(agent_name or "stream", pt, ct, tt, _calc_cost(selected_model, pt, ct))
+        except Exception:
+            pass
 
 
 def run_json_agent(
@@ -284,6 +349,7 @@ def run_embeddings(*, texts: list[str], model: str | None = None) -> list[list[f
     except Exception as exc:
         _raise_runtime_error(exc)
 
+    _record_usage("embedding", selected_model, result)
     data = getattr(result, "data", None)
     if data is None and isinstance(result, dict):
         data = result.get("data")

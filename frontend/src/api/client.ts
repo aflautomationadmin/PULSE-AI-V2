@@ -1,6 +1,7 @@
 import axios from 'axios';
 import type {
   ChatResponse, ThreadsResponse, SqlCacheEntry, AdminUser, AdminThread,
+  AdminUsageSummary, AdminRole,
 } from './types';
 
 const api = axios.create({ baseURL: '' });
@@ -161,6 +162,26 @@ export async function getAdminUsers(): Promise<AdminUser[]> {
 export async function getAdminConversations(userId: string): Promise<AdminThread[]> {
   const { data } = await api.get(`/admin/users/${encodeURIComponent(userId)}/conversations`);
   return data.threads;
+}
+
+export async function getAdminUsage(): Promise<AdminUsageSummary> {
+  const { data } = await api.get('/admin/usage');
+  return data;
+}
+
+export async function getAdmins(): Promise<AdminRole[]> {
+  const { data } = await api.get('/admin/admins');
+  return data.admins;
+}
+
+export async function grantAdmin(email: string): Promise<{ ok: boolean; email: string }> {
+  const { data } = await api.post('/admin/admins', { email });
+  return data;
+}
+
+export async function revokeAdmin(email: string): Promise<{ ok: boolean; email: string; removed: boolean }> {
+  const { data } = await api.delete(`/admin/admins/${encodeURIComponent(email)}`);
+  return data;
 }
 
 export async function submitFeedback(

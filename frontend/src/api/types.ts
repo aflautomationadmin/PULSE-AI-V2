@@ -93,3 +93,42 @@ export interface AdminThread {
   turn_count: number;
   turns: AdminTurn[];
 }
+
+export interface AgentUsage {
+  agent: string;
+  calls: number;
+  prompt_tokens: number;
+  completion_tokens: number;
+  total_tokens: number;
+  cost: number;
+}
+
+export interface UserUsage {
+  user_id: string;
+  total_tokens: number;
+  cost: number;
+  turns: number;
+}
+
+export interface UsageTotals {
+  prompt_tokens: number;
+  completion_tokens: number;
+  total_tokens: number;
+  cost: number;
+  turns: number;
+  tracked_turns: number;
+}
+
+export interface AdminUsageSummary {
+  by_agent: AgentUsage[];
+  by_user: UserUsage[];
+  totals: UsageTotals;
+}
+
+export interface AdminRole {
+  email: string;
+  removable: boolean;
+  source: 'permanent' | 'granted';
+  granted_by?: string | null;
+  granted_at?: string | null;
+}

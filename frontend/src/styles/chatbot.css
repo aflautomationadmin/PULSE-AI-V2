@@ -1490,8 +1490,155 @@ html.dark-mode .admin-sql pre { background: rgba(255, 255, 255, 0.06); }
   font-style: italic;
 }
 
+/* Tabs */
+.admin-tabs {
+  display: flex;
+  gap: 6px;
+  margin-left: auto;
+  margin-right: 16px;
+}
+.admin-tab {
+  padding: 7px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  background: transparent;
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+.admin-tab:hover { background: var(--accent-light); }
+.admin-tab.active {
+  color: #fff;
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+/* Usage view */
+.admin-usage { padding: 4px 4px 40px; }
+.usage-cards {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-bottom: 28px;
+}
+.usage-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 150px;
+  padding: 16px 20px;
+  background: var(--panel-bg);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+}
+.usage-card-value {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--accent);
+}
+.usage-card-label {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+.usage-section-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-color);
+  margin: 22px 0 12px;
+}
+.usage-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.usage-table th {
+  text-align: left;
+  padding: 8px 12px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--panel-border);
+}
+.usage-table td {
+  padding: 9px 12px;
+  color: var(--text-secondary);
+  border-bottom: 1px solid var(--panel-border);
+}
+.usage-table tr:hover td { background: var(--accent-light); }
+.usage-agent {
+  font-weight: 600;
+  color: var(--text-color);
+  font-family: 'Fira Code', monospace;
+  font-size: 12px;
+}
+.usage-bar-cell { width: 160px; }
+.usage-bar {
+  display: block;
+  height: 8px;
+  border-radius: 4px;
+  background: var(--accent);
+  min-width: 2px;
+}
+
+/* Access management */
+.admin-access { padding: 4px 4px 40px; max-width: 860px; }
+.access-grant {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+.access-input { flex: 1; max-width: 380px; margin-bottom: 0; }
+.access-grant-btn {
+  padding: 9px 18px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #fff;
+  background: var(--accent);
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+.access-grant-btn:hover:not(:disabled) { background: var(--accent-hover); }
+.access-grant-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.access-msg {
+  margin: 10px 0 4px;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+.access-badge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 9px;
+  border-radius: 999px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.access-badge.permanent { background: rgba(100, 116, 139, 0.18); color: var(--text-secondary); }
+.access-badge.granted   { background: rgba(220, 38, 38, 0.14); color: var(--accent); }
+.access-revoke-btn {
+  padding: 5px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent);
+  background: transparent;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+.access-revoke-btn:hover:not(:disabled) { background: var(--accent); color: #fff; }
+.access-revoke-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.access-locked { font-size: 14px; opacity: 0.6; }
+
 @media (max-width: 768px) {
   .admin-users { width: 140px; }
   .admin-user-stats { display: none; }
   .admin-detail { padding: 14px; }
+  .admin-tabs { margin-right: 8px; }
+  .admin-tab { padding: 6px 9px; font-size: 12px; }
+  .usage-bar-cell { display: none; }
+  .access-grant { flex-direction: column; }
+  .access-input { max-width: none; }
 }

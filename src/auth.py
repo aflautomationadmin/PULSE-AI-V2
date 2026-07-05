@@ -91,9 +91,25 @@ def get_current_user(token: str = Depends(oauth2_scheme)) -> str:
         raise credentials_exception
 
 
-def is_admin(email: str) -> bool:
-    """True if the given email is in the configured admin allow-list."""
+def is_seed_admin(email: str) -> bool:
+    """True if the email is a permanent admin from ADMIN_EMAILS (non-removable)."""
     return email.lower().strip() in get_settings().admin_emails
+
+
+def get_admin_emails() -> set[str]:
+    """All admin emails: the permanent env seed plus any DB-granted admins."""
+    admins = set(get_settings().admin_emails)
+    try:
+        from src.admin_store import list_admin_roles
+        admins |= {r["email"] for r in list_admin_roles() if r.get("email")}
+    except Exception:
+        pass  # DB unreachable — fall back to the env seed
+    return admins
+
+
+def is_admin(email: str) -> bool:
+    """True if the given email is a permanent (env) or DB-granted admin."""
+    return email.lower().strip() in get_admin_emails()
 
 
 def require_admin(user_email: str = Depends(get_current_user)) -> str:

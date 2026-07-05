@@ -13,9 +13,19 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
-from src.admin_store import get_user_conversations, list_users
-from src.auth import get_current_user, is_admin, require_admin
+import re
+
+from src.admin_store import (
+    add_admin_role,
+    get_usage_summary,
+    get_user_conversations,
+    list_admin_roles,
+    list_users,
+    remove_admin_role,
+)
+from src.auth import get_current_user, is_admin, is_seed_admin, require_admin
 from src.business_context import format_context_for_prompt
+from src.config import get_settings
 from src.orchestrator import ChatOrchestrator
 from src.tracing import get_langfuse
 
@@ -307,6 +317,77 @@ def admin_user_conversations(
 ) -> dict[str, Any]:
     """Return all threads + turns for one user (admin only)."""
     return {"user_id": user_id, "threads": get_user_conversations(user_id)}
+
+
+@app.get("/admin/usage")
+def admin_usage(_admin: str = Depends(require_admin)) -> dict[str, Any]:
+    """Per-agent token consumption + cost across all users (admin only)."""
+    return get_usage_summary()
+
+
+# ── Admin access management ─────────────────────────────────────────────────
+
+_EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+
+
+class AdminGrantRequest(BaseModel):
+    email: str
+
+
+@app.get("/admin/admins")
+def admin_list_admins(_admin: str = Depends(require_admin)) -> dict[str, Any]:
+    """List all admins. Env-seed admins are permanent (removable=false)."""
+    seed = list(get_settings().admin_emails)
+    seed_set = set(seed)
+    admins: list[dict[str, Any]] = [
+        {"email": e, "removable": False, "source": "permanent"} for e in seed
+    ]
+    for role in list_admin_roles():
+        email = (role.get("email") or "").lower().strip()
+        if not email or email in seed_set:
+            continue  # seed admins already listed (and stay permanent)
+        admins.append({
+            "email": email,
+            "removable": True,
+            "source": "granted",
+            "granted_by": role.get("granted_by"),
+            "granted_at": role.get("granted_at"),
+        })
+    return {"admins": admins}
+
+
+@app.post("/admin/admins")
+def admin_add_admin(
+    req: AdminGrantRequest,
+    user_email: str = Depends(require_admin),
+) -> dict[str, Any]:
+    """Grant admin access to another user (admin only)."""
+    email = req.email.lower().strip()
+    if not _EMAIL_RE.match(email):
+        raise HTTPException(status_code=400, detail="Invalid email address")
+    if is_seed_admin(email):
+        return {"ok": True, "email": email, "note": "already a permanent admin"}
+    if not add_admin_role(email, granted_by=user_email):
+        raise HTTPException(status_code=503, detail="Could not save admin (MongoDB unavailable)")
+    logger.info("Admin granted: %s by %s", email, user_email)
+    return {"ok": True, "email": email}
+
+
+@app.delete("/admin/admins/{email}")
+def admin_remove_admin(
+    email: str,
+    user_email: str = Depends(require_admin),
+) -> dict[str, Any]:
+    """Revoke a DB-granted admin. Permanent (env-seed) admins cannot be removed."""
+    email = email.lower().strip()
+    if is_seed_admin(email):
+        raise HTTPException(
+            status_code=403,
+            detail="This is a permanent admin and cannot be removed.",
+        )
+    removed = remove_admin_role(email)
+    logger.info("Admin revoked: %s by %s (removed=%s)", email, user_email, removed)
+    return {"ok": True, "email": email, "removed": removed}
 
 
 # ── Health (public — no auth required) ────────────────────────────────────────

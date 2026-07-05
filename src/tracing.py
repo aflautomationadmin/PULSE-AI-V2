@@ -27,6 +27,47 @@ if TYPE_CHECKING:
 _trace_id_var: ContextVar[str | None] = ContextVar("langfuse_trace_id", default=None)
 _user_id_var:  ContextVar[str | None] = ContextVar("langfuse_user_id",  default=None)
 
+# Per-request token accumulator: {agent_name: {prompt_tokens, completion_tokens,
+# total_tokens, cost, calls}}. Reset at the start of each chat request; read by
+# memory.add_turn() when a turn is persisted.
+_token_usage_var: ContextVar[dict | None] = ContextVar("token_usage", default=None)
+
+
+def reset_token_usage() -> None:
+    """Start a fresh per-request token tally. Call once at request start."""
+    _token_usage_var.set({})
+
+
+def record_token_usage(
+    agent_name: str,
+    prompt_tokens: int,
+    completion_tokens: int,
+    total_tokens: int,
+    cost: float,
+) -> None:
+    """Accumulate one LLM call's token usage under its agent name."""
+    acc = _token_usage_var.get()
+    if acc is None:
+        acc = {}
+        _token_usage_var.set(acc)
+    entry = acc.setdefault(
+        agent_name,
+        {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0, "cost": 0.0, "calls": 0},
+    )
+    entry["prompt_tokens"] += int(prompt_tokens or 0)
+    entry["completion_tokens"] += int(completion_tokens or 0)
+    entry["total_tokens"] += int(total_tokens or 0)
+    entry["cost"] += float(cost or 0.0)
+    entry["calls"] += 1
+
+
+def get_token_usage() -> dict:
+    """Return a snapshot copy of the current request's per-agent token tally."""
+    acc = _token_usage_var.get()
+    if not acc:
+        return {}
+    return {agent: dict(stats) for agent, stats in acc.items()}
+
 
 @lru_cache(maxsize=1)
 def get_langfuse() -> "Langfuse | None":

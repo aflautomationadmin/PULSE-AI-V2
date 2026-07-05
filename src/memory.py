@@ -36,6 +36,8 @@ class MemoryTurn:
     chart_type: str | None = None
     row_preview: list[dict[str, Any]] | None = None
     trace_id: str | None = None
+    # per-agent token/cost tally for this turn: {agent: {prompt_tokens, ...}}
+    token_usage: dict[str, Any] | None = None
     # legacy — kept for backward compat when reading old JSON files
     chart_path: str | None = None
 
@@ -79,7 +81,11 @@ class ConversationMemory:
         chart_type: str | None = None,
         row_preview: list[dict[str, Any]] | None = None,
         trace_id: str | None = None,
+        token_usage: dict[str, Any] | None = None,
     ) -> None:
+        if token_usage is None:
+            from src.tracing import get_token_usage
+            token_usage = get_token_usage() or None
         self._current_turns().append(
             MemoryTurn(
                 user=user.strip(),
@@ -93,6 +99,7 @@ class ConversationMemory:
                 chart_type=chart_type,
                 row_preview=row_preview,
                 trace_id=trace_id,
+                token_usage=token_usage,
             )
         )
         self._persist()

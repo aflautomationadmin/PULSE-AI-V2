@@ -318,6 +318,9 @@ class ChatOrchestrator:
         if not cleaned:
             return BotReply(route="normal_chat", answer_text="Please enter a question.")
 
+        from src.tracing import reset_token_usage
+        reset_token_usage()
+
         classifier_input = self._build_contextual_input(cleaned)
         try:
             classification = classify_question(classifier_input)
@@ -370,7 +373,10 @@ class ChatOrchestrator:
             return
 
         # ── Langfuse trace — one trace per user request ──────────────────────
-        from src.tracing import current_trace_id, get_langfuse, set_trace_context
+        from src.tracing import (
+            current_trace_id, get_langfuse, set_trace_context, reset_token_usage,
+        )
+        reset_token_usage()
         _trace_id = str(uuid4())
         self.last_trace_id = _trace_id
         set_trace_context(_trace_id, self._user_id)

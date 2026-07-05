@@ -115,7 +115,11 @@ class MongoConversationMemory:
         chart_type: str | None = None,
         row_preview: list[dict[str, Any]] | None = None,
         trace_id: str | None = None,
+        token_usage: dict[str, Any] | None = None,
     ) -> None:
+        if token_usage is None:
+            from src.tracing import get_token_usage
+            token_usage = get_token_usage() or None
         self._current_turns().append(
             MemoryTurn(
                 user=user.strip(),
@@ -129,6 +133,7 @@ class MongoConversationMemory:
                 chart_type=chart_type,
                 row_preview=row_preview,
                 trace_id=trace_id,
+                token_usage=token_usage,
             )
         )
         self._save_thread(self._active_thread_id)
@@ -270,6 +275,7 @@ class MongoConversationMemory:
                         chart_type=t.get("chart_type"),
                         row_preview=t.get("row_preview"),
                         trace_id=t.get("trace_id"),
+                        token_usage=t.get("token_usage"),
                     ))
                 self._threads[thread_id] = q
         except Exception:
@@ -293,6 +299,7 @@ class MongoConversationMemory:
                 "chart_type":      t.chart_type,
                 "row_preview":     t.row_preview,
                 "trace_id":        t.trace_id,
+                "token_usage":     t.token_usage,
                 "created_at":      now,
             }
             for t in turns
