@@ -2,18 +2,16 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import threading
 from contextlib import asynccontextmanager
 from dataclasses import asdict
 from typing import Any
-from uuid import NAMESPACE_URL, uuid5
 
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
-
-import re
 
 from src.admin_store import (
     add_admin_role,
@@ -26,8 +24,8 @@ from src.admin_store import (
 from src.auth import get_current_user, is_admin, is_seed_admin, require_admin
 from src.business_context import format_context_for_prompt
 from src.config import get_settings
+from src.conversation_log import save_feedback
 from src.orchestrator import ChatOrchestrator
-from src.tracing import get_langfuse
 
 logger = logging.getLogger(__name__)
 
@@ -81,6 +79,8 @@ class FeedbackRequest(BaseModel):
     score: int          # 1 = 👍  0 = 👎
     comment: str | None = None
     thread_id: str | None = None
+    response: str | None = None   # the bot answer that was rated
+    question: str | None = None   # the user question (optional context)
 
 
 # ── Chat (non-streaming) ───────────────────────────────────────────────────────
@@ -241,14 +241,13 @@ def show_context(user_email: str = Depends(get_current_user)) -> dict[str, Any]:
     return {"context": format_context_for_prompt(context)}
 
 
-# ── Feedback (Langfuse scores) ─────────────────────────────────────────────────
+# ── Feedback (stored in the SQL feedback table) ─────────────────────────────────
 
 @app.post("/feedback")
 def submit_feedback(
     req: FeedbackRequest,
     user_email: str = Depends(get_current_user),
 ) -> dict[str, Any]:
-    lf = get_langfuse()
     trace_id = req.trace_id
     if not trace_id:
         orch = _get_orchestrator(user_email)
@@ -259,41 +258,27 @@ def submit_feedback(
             if message.get("role") == "bot" and isinstance(candidate, str) and candidate:
                 trace_id = candidate
                 break
-        logger.warning(
-            "Feedback request missing trace_id; fallback trace_id=%s thread_id=%s user=%s",
-            trace_id,
-            thread_id,
-            user_email,
-        )
-    if not trace_id:
-        raise HTTPException(status_code=400, detail="Missing trace_id for feedback")
-    if not lf:
-        raise HTTPException(status_code=503, detail="Langfuse is not configured")
 
-    try:
-        score_id = str(uuid5(NAMESPACE_URL, f"{trace_id}:user-feedback"))
-        logger.info(
-            "Submitting Langfuse feedback score trace_id=%s score=%s user=%s comment_present=%s",
-            trace_id,
-            req.score,
-            user_email,
-            bool(req.comment),
+    liked = "like" if req.score == 1 else "dislike"
+    ok = save_feedback(
+        trace_id=trace_id,
+        user_email=user_email,
+        liked=liked,
+        comment=req.comment,
+        response=req.response,
+        question=req.question,
+    )
+    if not ok:
+        raise HTTPException(
+            status_code=503,
+            detail="Could not save feedback to the database.",
         )
-        lf.score(
-            id=score_id,
-            trace_id=trace_id,
-            name="user-feedback",
-            value=req.score,
-            comment=req.comment,
-            data_type="BOOLEAN",
-        )
-        lf.flush()
-    except Exception as exc:
-        logger.exception("Langfuse feedback write failed trace_id=%s", trace_id)
-        raise HTTPException(status_code=502, detail=f"Langfuse feedback write failed: {exc}")
 
-    logger.info("Langfuse feedback score submitted score_id=%s trace_id=%s", score_id, trace_id)
-    return {"ok": True, "trace_id": trace_id, "score_id": score_id}
+    logger.info(
+        "Feedback saved to SQL: liked=%s user=%s trace_id=%s comment_present=%s",
+        liked, user_email, trace_id, bool(req.comment),
+    )
+    return {"ok": True, "trace_id": trace_id, "liked": liked}
 
 
 # ── Admin portal ───────────────────────────────────────────────────────────────

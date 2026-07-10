@@ -103,6 +103,17 @@ class ConversationMemory:
             )
         )
         self._persist()
+        try:
+            from src.conversation_log import log_turn_for_memory
+            log_turn_for_memory(self, user, assistant, route, token_usage)
+        except Exception:
+            pass
+
+    def begin_turn(self, trace_id: str | None) -> None:
+        """Stamp the current turn's trace_id + start time for SQL logging."""
+        import time
+        self._log_trace_id = trace_id
+        self._log_turn_start = time.perf_counter()
 
     def clear(self) -> None:
         self._current_turns().clear()

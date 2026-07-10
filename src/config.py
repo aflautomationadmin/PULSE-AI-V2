@@ -49,10 +49,8 @@ class Settings:
     azure_client_id: str = ""   # AZURE_CLIENT_ID
     # Admin portal — emails allowed to view all users' conversations
     admin_emails: tuple[str, ...] = ()   # ADMIN_EMAILS (comma-separated)
-    # Langfuse observability (optional — silently disabled when keys are absent)
-    langfuse_public_key: str = ""   # LANGFUSE_PUBLIC_KEY
-    langfuse_secret_key: str = ""   # LANGFUSE_SECRET_KEY
-    langfuse_host: str = "https://cloud.langfuse.com"  # LANGFUSE_HOST
+    # Feedback — SQL table (schema.table) that 👍/👎 feedback is written to.
+    feedback_table: str = "dbo.PulseAI_Feedback"   # FEEDBACK_TABLE
     llm_timeout_seconds: int = 45
     embedding_timeout_seconds: int = 30
     visualization_enabled: bool = True
@@ -139,9 +137,7 @@ def get_settings() -> Settings:
             "ADMIN_EMAILS",
             ("mohit.lokhande@arvindfashions.com", "radhakishan.thakur@arvindfashions.com"),
         ),
-        langfuse_public_key=os.getenv("LANGFUSE_PUBLIC_KEY", "").strip(),
-        langfuse_secret_key=os.getenv("LANGFUSE_SECRET_KEY", "").strip(),
-        langfuse_host=os.getenv("LANGFUSE_HOST", "https://cloud.langfuse.com").strip(),
+        feedback_table=os.getenv("FEEDBACK_TABLE", "dbo.PulseAI_Feedback").strip(),
         db_server=_required_env("DB_SERVER"),
         db_database=_required_env("DB_DATABASE"),
         db_username=_required_env("DB_USERNAME"),

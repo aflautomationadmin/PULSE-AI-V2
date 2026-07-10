@@ -4,8 +4,6 @@
 #   pulse-backend   FastAPI Python API          → http://localhost:8000
 #   pulse-frontend  React/Vite (nginx)           → http://localhost:3000
 #   mongodb         Conversation thread storage  → localhost:27017
-#   langfuse-db     Postgres for Langfuse        (internal)
-#   langfuse        LLM observability dashboard  → http://localhost:3001
 #
 # Usage:
 #   docker compose up -d --build
@@ -44,7 +42,6 @@ services:
     environment:
       # Override localhost refs to use Docker service names
       MONGO_URI: mongodb://mongodb:27017
-      LANGFUSE_HOST: http://langfuse:3000
     volumes:
       # Persist caches across container restarts
       - backend_cache:/app/.cache
@@ -70,40 +67,6 @@ services:
     ports:
       - "3000:80"
 
-  # ── Langfuse DB — Postgres ─────────────────────────────────────────────────
-  langfuse-db:
-    image: postgres:16-alpine
-    restart: unless-stopped
-    environment:
-      POSTGRES_DB: langfuse
-      POSTGRES_USER: langfuse
-      POSTGRES_PASSWORD: langfuse_secret
-    volumes:
-      - langfuse_db:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U langfuse"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-  # ── Langfuse — LLM observability ───────────────────────────────────────────
-  langfuse:
-    image: langfuse/langfuse:2
-    restart: unless-stopped
-    depends_on:
-      langfuse-db:
-        condition: service_healthy
-    ports:
-      - "3001:3000"
-    environment:
-      DATABASE_URL: postgresql://langfuse:langfuse_secret@langfuse-db:5432/langfuse
-      NEXTAUTH_URL: http://localhost:3001
-      NEXTAUTH_SECRET: langfuse_nextauth_secret_change_me_32c
-      SALT: langfuse_salt_change_me_32chars_xx
-      LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES: "true"
-      TELEMETRY_ENABLED: "false"
-
 volumes:
   mongo_data:
   backend_cache:
-  langfuse_db:

@@ -36,7 +36,7 @@ export function Message({ message, threadId }: Props) {
     setFeedbackError(null);
     const traceId = message.response?.trace_id;
     try {
-      await submitFeedback(traceId, val === 'up' ? 1 : 0, undefined, threadId);
+      await submitFeedback(traceId, val === 'up' ? 1 : 0, undefined, threadId, message.text);
       setFeedbackSent(true);
       setCommentOpen(true);
     } catch (error) {
@@ -53,6 +53,7 @@ export function Message({ message, threadId }: Props) {
         feedback === 'up' ? 1 : 0,
         feedbackComment.trim() || undefined,
         threadId,
+        message.text,
       );
       setCommentSent(true);
       setCommentOpen(false);

@@ -90,6 +90,9 @@ class ChatOrchestrator:
             if self.settings.memory_auto_create_thread:
                 self.memory.create_thread(self._new_thread_id(), switch=True)
 
+        # Give the memory backend the user identity so it can stamp SQL logs.
+        self.memory._user_id = effective_user_id
+
         self.sql_cache = (
             SqlQueryCache(path=self.settings.sql_cache_path)
             if self.settings.sql_cache_enabled
@@ -318,8 +321,13 @@ class ChatOrchestrator:
         if not cleaned:
             return BotReply(route="normal_chat", answer_text="Please enter a question.")
 
-        from src.tracing import reset_token_usage
+        from src.tracing import reset_token_usage, mark_request_start, set_trace_context
         reset_token_usage()
+        mark_request_start()
+        _trace_id = str(uuid4())
+        self.last_trace_id = _trace_id
+        set_trace_context(_trace_id, self._user_id)
+        self.memory.begin_turn(_trace_id)
 
         classifier_input = self._build_contextual_input(cleaned)
         try:
@@ -372,27 +380,16 @@ class ChatOrchestrator:
             yield {"type": "complete", "content": "Please enter a question."}
             return
 
-        # ── Langfuse trace — one trace per user request ──────────────────────
+        # ── Per-request trace context — one trace_id per user request ────────
         from src.tracing import (
-            current_trace_id, get_langfuse, set_trace_context, reset_token_usage,
+            current_trace_id, set_trace_context, reset_token_usage, mark_request_start,
         )
         reset_token_usage()
+        mark_request_start()
         _trace_id = str(uuid4())
         self.last_trace_id = _trace_id
         set_trace_context(_trace_id, self._user_id)
-        _lf = get_langfuse()
-        if _lf:
-            try:
-                _lf.trace(
-                    id=_trace_id,
-                    name="chat_request",
-                    user_id=self._user_id,
-                    input=cleaned,
-                    tags=["chat"],
-                )
-                _lf.flush()
-            except Exception:
-                pass  # tracing is non-fatal
+        self.memory.begin_turn(_trace_id)
 
         # ── Classify ────────────────────────────────────────────────────────
         classifier_input = self._build_contextual_input(cleaned)
@@ -624,16 +621,7 @@ class ChatOrchestrator:
                 trace_id=current_trace_id(),
             )
 
-            from src.tracing import get_langfuse
             _tid = current_trace_id()
-            # Update Langfuse trace with the final answer
-            _lf2 = get_langfuse()
-            if _lf2 and _tid:
-                try:
-                    _lf2.trace(id=_tid, output=answer)
-                    _lf2.flush()
-                except Exception:
-                    pass
 
             yield {
                 "type": "metadata",

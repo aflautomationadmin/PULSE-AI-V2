@@ -128,6 +128,62 @@ def remove_admin_role(email: str) -> bool:
         return False
 
 
+# ── User feedback (replaces Langfuse scores) ───────────────────────────────────
+
+_feedback_collection: Any = None
+
+
+def _get_feedback_collection() -> Any | None:
+    """Return the feedback collection, or None if Mongo is not configured."""
+    global _feedback_collection
+    settings = get_settings()
+    if not settings.mongo_uri:
+        return None
+    if _feedback_collection is not None:
+        return _feedback_collection
+    if _get_collection() is None or _client is None:
+        return None
+    try:
+        _feedback_collection = _client[settings.mongo_db_name]["feedback"]
+        _feedback_collection.create_index("trace_id", unique=True, background=True)
+        return _feedback_collection
+    except Exception as exc:
+        logger.warning("admin_store: failed to open feedback collection: %s", exc)
+        return None
+
+
+def save_feedback(
+    trace_id: str, user_id: str, score: int, comment: str | None = None
+) -> bool:
+    """
+    Store a 👍/👎 rating for one answer, keyed by trace_id (upsert — the latest
+    rating wins). Returns True on success.
+    """
+    col = _get_feedback_collection()
+    if col is None:
+        return False
+    now = datetime.now(timezone.utc)
+    try:
+        col.update_one(
+            {"trace_id": trace_id},
+            {
+                "$set": {
+                    "trace_id": trace_id,
+                    "user_id": user_id,
+                    "score": int(score),
+                    "comment": comment,
+                    "updated_at": now,
+                },
+                "$setOnInsert": {"created_at": now},
+            },
+            upsert=True,
+        )
+        return True
+    except Exception as exc:
+        logger.warning("admin_store.save_feedback failed: %s", exc)
+        return False
+
+
 def list_users() -> list[dict[str, Any]]:
     """
     Return one entry per user who has any conversation, sorted by most recent

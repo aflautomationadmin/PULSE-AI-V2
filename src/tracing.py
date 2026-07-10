@@ -1,31 +1,35 @@
 """
-Langfuse tracing helpers.
+Request tracing helpers.
 
-Uses Python ContextVar to propagate trace_id + user_id across the entire
-request pipeline without changing any agent function signatures.
-
-Usage pattern in the orchestrator:
-    lf = get_langfuse()
-    if lf:
-        trace = lf.trace(name="chat_request", user_id=..., input=question)
-        set_trace_context(trace.id, user_id)
-
-Usage pattern in llm.py (called automatically via _lf_meta):
-    metadata = _lf_meta("sql_writer")  # reads ContextVar internally
+Uses Python ContextVar to propagate a per-request trace_id + user_id across the
+entire pipeline without changing any agent function signatures. The trace_id is
+a stable identifier for one chat turn — stored on the turn and used to correlate
+user feedback.
 """
 
 from __future__ import annotations
 
+import time
 from contextvars import ContextVar
-from functools import lru_cache
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from langfuse import Langfuse
 
 # ── Per-request context (thread-safe via ContextVar) ─────────────────────────
-_trace_id_var: ContextVar[str | None] = ContextVar("langfuse_trace_id", default=None)
-_user_id_var:  ContextVar[str | None] = ContextVar("langfuse_user_id",  default=None)
+_trace_id_var: ContextVar[str | None] = ContextVar("trace_id", default=None)
+_user_id_var:  ContextVar[str | None] = ContextVar("user_id",  default=None)
+# perf_counter timestamp marking when the current request started
+_request_start_var: ContextVar[float | None] = ContextVar("request_start", default=None)
+
+
+def mark_request_start() -> None:
+    """Record the start time of the current request (for response-time metrics)."""
+    _request_start_var.set(time.perf_counter())
+
+
+def get_elapsed_ms() -> int:
+    """Milliseconds since mark_request_start() for this request (0 if unset)."""
+    start = _request_start_var.get()
+    if start is None:
+        return 0
+    return int((time.perf_counter() - start) * 1000)
 
 # Per-request token accumulator: {agent_name: {prompt_tokens, completion_tokens,
 # total_tokens, cost, calls}}. Reset at the start of each chat request; read by
@@ -67,27 +71,6 @@ def get_token_usage() -> dict:
     if not acc:
         return {}
     return {agent: dict(stats) for agent, stats in acc.items()}
-
-
-@lru_cache(maxsize=1)
-def get_langfuse() -> "Langfuse | None":
-    """
-    Return a Langfuse client singleton, or None if not configured.
-    Graceful degradation: the app works normally when keys are absent.
-    """
-    from src.config import get_settings
-    s = get_settings()
-    if not s.langfuse_secret_key:
-        return None
-    try:
-        from langfuse import Langfuse
-        return Langfuse(
-            public_key=s.langfuse_public_key,
-            secret_key=s.langfuse_secret_key,
-            host=s.langfuse_host,
-        )
-    except Exception:
-        return None
 
 
 def set_trace_context(trace_id: str, user_id: str) -> None:

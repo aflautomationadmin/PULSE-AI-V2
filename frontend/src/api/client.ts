@@ -189,9 +189,13 @@ export async function submitFeedback(
   score: 1 | 0,
   comment?: string,
   thread_id?: string,
-): Promise<{ ok: boolean; trace_id: string; score_id: string }> {
+  response?: string,
+  question?: string,
+): Promise<{ ok: boolean; trace_id: string; liked?: string }> {
   try {
-    const { data } = await api.post('/feedback', { trace_id, score, comment, thread_id });
+    const { data } = await api.post('/feedback', {
+      trace_id, score, comment, thread_id, response, question,
+    });
     return data;
   } catch (error) {
     if (axios.isAxiosError(error)) {
